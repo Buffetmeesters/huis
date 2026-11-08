@@ -164,6 +164,7 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 <header>
  <div><h1 id="title">Thuis</h1><div class="sub" id="sub"></div></div>
  <div class="grow"></div>
+ <button class="chip" id="logout" type="button">Uitloggen</button>
  <div class="seg" role="group" aria-label="Weergave"><button data-role="owner" aria-pressed="true">Eigenaar</button><button data-role="guest" aria-pressed="false">Gast</button></div>
 </header>
 <nav class="tabs" id="views" aria-label="Onderdelen"></nav>
@@ -216,10 +217,11 @@ const can=(k,id)=>S.role==='owner'||!!(RP(id)&&RP(id)[k]);
 Object.defineProperty(S,'clim',{get(){const r=cur();return r.c||(r.c={set:21,air:false})}});
 const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(RP(r.id)).some(Boolean));
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
-const guestBar=()=>S.role==='owner'?'':`<div class="chips" style="margin-bottom:12px"><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
+const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const srvPut=(k,v)=>{try{fetch('/api/state/'+k,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(v)}).catch(()=>{})}catch(e){}};
-const save=()=>{try{localStorage.setItem('huis-d2',JSON.stringify(D));if(S.redit)localStorage.setItem('huis-r',JSON.stringify(S.rooms))}catch(e){}srvPut('data',D);if(S.redit)srvPut('rooms',S.rooms)};
+let GUEST=false;
+const srvPut=(k,v)=>{if(GUEST)return;try{fetch('/api/state/'+k,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(v)}).catch(()=>{})}catch(e){}};
+const save=()=>{if(GUEST)return;try{localStorage.setItem('huis-d2',JSON.stringify(D));if(S.redit)localStorage.setItem('huis-r',JSON.stringify(S.rooms))}catch(e){}srvPut('data',D);if(S.redit)srvPut('rooms',S.rooms)};
 const opts=sel=>D.who.map(w=>`<option ${w===sel?'selected':''}>${w}</option>`).join('');
 const ING=r=>r.i.split('\n').map(x=>x.trim()).filter(Boolean);
 const rsel=(i,j)=>!(S.ru&&S.ru[i]&&S.ru[i].includes(j));
@@ -484,15 +486,22 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
   else if(a==='rfl')q.f=+t.value;
   else{const n=t.value.trim(),l=q.lights[+t.dataset.j];if(n&&l)l.n=n}
   S.redit=1;S.orr=q.id;save();render()}});
+document.addEventListener('click',async e=>{if(e.target.id==='logout'){try{localStorage.removeItem('huis-d2');localStorage.removeItem('huis-r')}catch(x){}try{await fetch('/api/logout',{method:'POST'})}catch(x){}location.reload()}});
 (async()=>{
-let fromSrv=false;
-try{const r=await fetch('/api/state/data');if(r.status===200){localStorage.setItem('huis-d2',await r.text());fromSrv=true}}catch(e){}
-try{const r=await fetch('/api/state/rooms');if(r.status===200)localStorage.setItem('huis-r',await r.text())}catch(e){}
-try{const x=JSON.parse(localStorage.getItem('huis-d2'));if(x)Object.assign(D,x)}catch(e){}
-try{const rr=JSON.parse(localStorage.getItem('huis-r'));if(Array.isArray(rr)&&rr.length){S.rooms=rr;S.redit=1}}catch(e){}
+let fromSrv=false,ME=null;
+try{const r=await fetch('/api/me');if(r.status!==200){location.reload();return}ME=await r.json()}catch(e){}
+GUEST=!!ME&&ME.role==='guest';
+if(GUEST){try{localStorage.removeItem('huis-d2');localStorage.removeItem('huis-r')}catch(e){}}
+let srvD=null;
+try{const r=await fetch('/api/state/data');if(r.status===200){srvD=await r.text();fromSrv=true;if(!GUEST)localStorage.setItem('huis-d2',srvD)}}catch(e){}
+try{const r=await fetch('/api/state/rooms');if(r.status===200){const t=await r.text();if(!GUEST)localStorage.setItem('huis-r',t);else{const rr=JSON.parse(t);if(Array.isArray(rr)&&rr.length){S.rooms=rr;S.redit=1}}}}catch(e){}
+if(GUEST&&srvD){try{Object.assign(D,JSON.parse(srvD))}catch(e){}}
+if(!GUEST)try{const x=JSON.parse(localStorage.getItem('huis-d2'));if(x)Object.assign(D,x)}catch(e){}
+if(!GUEST)try{const rr=JSON.parse(localStorage.getItem('huis-r'));if(Array.isArray(rr)&&rr.length){S.rooms=rr;S.redit=1}}catch(e){}
 D.tasks.forEach((t,k)=>{if(!t.id)t.id='t'+k+'x'+Date.now();if(t.rep===undefined)t.rep=''});if(!D.log)D.log=D.tasks.filter(t=>t.by).map(t=>({tid:t.id,w:t.by,p:t.p,d:iso(0),n:t.n}));resetDue();
 if(!D.afval)D.afval=[];seedAfval();if(!D.addr)D.addr='Frans Staelstraat 29, 5281 CW Boxtel';
 if(!D.notes)D.notes=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
+if(ME){D.me=ME.name;if(GUEST){S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
 render();
 if(!fromSrv)save();
 })();
