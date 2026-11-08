@@ -298,7 +298,8 @@ groepen(){
  const gsel=S.gsel||[];
  h+=`<h3 style="margin:18px 0 6px">Nieuwe groep</h3><div class="card form"><input id="gn" placeholder="Naam, bijvoorbeeld Eetkamer" value="${esc(S.gn||'')}"><div class="chips">${A.map(x=>`<button class="chip" data-act="gsel" data-e="${x.e}" aria-pressed="${gsel.includes(x.e)}">${esc(x.label)}</button>`).join('')}</div><button class="btn" data-act="gadd">Groep opslaan</button></div>`;
  h+='<h2 style="margin-top:24px">Scènes</h2><p class="state">Een scène bewaart de stand van de lampen, met helderheid en kleur.</p>';
- h+=sc.map(c=>`<div class="card row"><div><div class="name">${esc(c.n)}</div><div class="state">${c.items.length} ${c.items.length===1?'lamp':'lampen'}</div></div><div class="mini"><button class="btn" data-act="sapply" data-s="${c.id}">Toepassen</button><button class="btn alt" data-act="sdel" data-s="${c.id}">${S.cd===c.id?'Zeker?':'Wis'}</button></div></div>`).join('')||'<div class="state">Nog geen scènes.</div>';
+ h+=sc.map(c=>`<div class="card row"><div><div class="name">${esc(c.n)}</div><div class="state">${c.hue?'Hue-scène · '+esc((S.rooms.find(r=>r.id===c.room)||{name:'?'}).name):c.items.length+(c.items.length===1?' lamp':' lampen')}</div></div><div class="mini"><button class="btn" data-act="sapply" data-s="${c.id}">Toepassen</button><button class="btn alt" data-act="sdel" data-s="${c.id}">${S.cd===c.id?'Zeker?':'Wis'}</button></div></div>`).join('')||'<div class="state">Nog geen scènes.</div>';
+ h+=`<h3 style="margin:18px 0 6px">Scènes uit Hue overnemen</h3><div class="card form"><div class="state">Haalt de scènes op die je in de Hue-app hebt gemaakt. Kies bij elke scène de ruimte, dan mogen gasten met het recht “Sfeer” in die ruimte hem gebruiken.</div><button class="btn" data-act="hload">Hue-scènes ophalen</button>${S.hmsg?'<div class="state">'+esc(S.hmsg)+'</div>':''}${(S.hsc||[]).map((x,k)=>{const g=(x.groep||'').toLowerCase(),guess=(S.rooms.find(r=>r.name.toLowerCase()===g)||S.rooms.find(r=>g&&(r.name.toLowerCase().includes(g)||g.includes(r.name.toLowerCase())))||S.rooms[0]).id;return `<div class="mini"><span style="flex:1">${esc(x.naam)}<span class="state"> ${esc(x.groep||'')}</span></span><select id="hr${k}" aria-label="Ruimte voor ${esc(x.naam)}">${S.rooms.map(r=>`<option value="${r.id}" ${r.id===guess?'selected':''}>${esc(r.name)}</option>`).join('')}</select><button class="btn" data-act="hadd" data-i="${k}">Overnemen</button></div>`}).join('')}</div>`;
  const rs=[...new Set(A.map(x=>x.r.id))],ssel=S.ssel||rs;
  h+=`<h3 style="margin:18px 0 6px">Huidige stand opslaan</h3><div class="card form"><input id="sn" placeholder="Naam, bijvoorbeeld Film of Diner" value="${esc(S.sn||'')}"><div class="state">Welke ruimtes horen erbij?</div><div class="chips">${rs.map(id=>`<button class="chip" data-act="ssel" data-r="${id}" aria-pressed="${ssel.includes(id)}">${esc(S.rooms.find(r=>r.id===id).name)}</button>`).join('')}</div><button class="btn" data-act="sadd">Scène opslaan</button></div>`;
  return h},
@@ -328,10 +329,14 @@ overzicht(){resetDue();loadWeather();
  const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),totL=S.rooms.reduce((a,r)=>a+r.lights.length,0),aanA=S.rooms.filter(r=>r.c&&r.c.air).length,nAir=S.rooms.filter(r=>r.cl).length;
  const qi=k=>`<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${k}"/></svg></span>`;
  h+=`<h2>Snelle bediening</h2><div class="qgrid">
- <button class="qt ${aanL?'on':''}" data-act="qlights" ${aanL?'':'disabled'}>${qi(IC.home)}<span class="qn">Lampen</span><span class="qs">${aanL} van ${totL} aan${aanL?' · tik: alles uit':''}</span></button>
  <button class="qt ${aanA?'on':''}" data-act="qair" ${aanA?'':'disabled'}>${qi('M3 7h18v6H3zM7 17v3M12 17v3M17 17v3')}<span class="qn">Airco’s</span><span class="qs">${aanA} van ${nAir} aan${aanA?' · tik: alles uit':''}</span></button>
  <button class="qt ${S.film?'on':''}" data-act="film">${qi('M4 6h16v12H4zM9 3l3 3 3-3')}<span class="qn">Film kijken</span><span class="qs">${S.film?'Actief · tik om te stoppen':'Sync box en woonkamer'}</span></button>
  <button class="qt ${S.media.playing?'on':''}" data-act="play">${qi('M9 18V6l10-2v12M9 18a3 3 0 1 1-3-3M19 16a3 3 0 1 1-3-3')}<span class="qn">Muziek</span><span class="qs">${S.media.playing?'Speelt · tik voor pauze':'Gepauzeerd'}</span></button></div>`;
+ const rt=S.rooms.filter(r=>r.lights.length&&!r.own||S.role==='owner'&&r.lights.length);
+ h+=`<h2>Ruimtes</h2><div class="grid">`+rt.map(r=>{const n=r.lights.filter(l=>l.on).length,avg=n?Math.round(r.lights.filter(l=>l.on).reduce((a,l)=>a+(l.b||0),0)/n):0;
+  return `<div class="card lamp ${n?'on':''}" style="--b:${avg||60}"><div class="glow"></div><div class="row"><button class="name" style="all:unset;cursor:pointer;font-weight:600" data-act="goroom" data-r="${r.id}">${esc(r.name)}</button><button class="tog" data-act="rall" data-r="${r.id}" aria-pressed="${n>0}" aria-label="${esc(r.name)} aan of uit"></button></div><div class="state">${n?n+' van '+r.lights.length+' aan · '+avg+'%':'Uit'}</div><input type="range" min="1" max="100" value="${avg||60}" data-act="rbri" data-r="${r.id}" aria-label="Helderheid ${esc(r.name)}"></div>`}).join('')+`</div>`;
+ const gr=(D.groups||[]).filter(g=>allLights().some(x=>g.e.includes(x.e)));
+ if(gr.length)h+=`<h3 style="margin:16px 0 6px">Groepen</h3><div class="grid">`+gr.map(g=>{const ls=allLights().filter(x=>g.e.includes(x.e)),n=ls.filter(x=>x.l.on).length;return `<div class="card lamp ${n?'on':''}" style="--b:70"><div class="glow"></div><div class="row"><div class="name">${esc(g.n)}</div><button class="tog" data-act="gtog" data-g="${g.id}" aria-pressed="${n>0}" aria-label="${esc(g.n)} aan of uit"></button></div><div class="state">${n?n+' van '+ls.length+' aan':'Uit'}</div></div>`}).join('')+`</div>`;
  const w=S.wx;
  h+=`<h2>Weer vandaag</h2><div class="card">`+(w&&w!=='err'?`<div class="row"><div><div class="big">${Math.round(w.current.temperature_2m)}°</div><div class="name">${WX[w.current.weather_code]||'Onbekend'}</div><div class="state">Voelt als ${Math.round(w.current.apparent_temperature)}° · wind ${Math.round(w.current.wind_speed_10m)} km/u</div></div><div class="state" style="text-align:right">Hoog ${Math.round(w.daily.temperature_2m_max[0])}°<br>Laag ${Math.round(w.daily.temperature_2m_min[0])}°<br>Kans op neerslag ${w.daily.precipitation_probability_max[0]??0}%</div></div>`:w==='err'?'<div class="name">Het weer kon niet worden geladen</div><div class="state">Controleer de internetverbinding. In de demo kan het ophalen ook geblokkeerd zijn.</div>':'<div class="state">Weer laden…</div>')+`</div>`;
  const key=today.slice(0,7);
@@ -404,7 +409,9 @@ ${r.img?`<img src="${r.img}" alt="Foto van ${esc(r.n)}" style="width:100%;max-he
 <div class="state" style="margin-top:10px">Bereiding</div><p style="white-space:pre-line">${esc(r.s)}</p>
 <div class="mini" style="flex-wrap:wrap"><button class="btn" data-act="rshop" data-i="${i}" ${n?'':'disabled'}>Op boodschappenlijst (${n})</button><label class="btn alt" style="display:inline-block;cursor:pointer">${r.img?'Foto wijzigen':'Foto toevoegen'}<input class="sr" type="file" accept="image/*" data-act="rphoto" data-i="${i}"></label>${r.img?`<button class="btn alt" data-act="rimgdel" data-i="${i}">Foto wissen</button>`:''}<button class="btn alt" data-act="rdel" data-i="${i}">Wis</button></div></details>`});
  return h+`<h2>Recept toevoegen</h2><div class="card form"><input id="rn" placeholder="Naam van het gerecht"><input id="rm" type="number" min="1" placeholder="Minuten"><textarea id="ri" rows="4" placeholder="Ingrediënten, één per regel"></textarea><textarea id="rs" rows="4" placeholder="Bereiding"></textarea><label class="btn alt" style="display:inline-block;cursor:pointer;text-align:center">Foto toevoegen (optioneel)<input class="sr" type="file" accept="image/*" data-act="rnewphoto"></label><img id="rprev" alt="Voorbeeld van de foto" ${S.rimg?`src="${S.rimg}"`:''} style="display:${S.rimg?'block':'none'};width:100%;max-height:220px;object-fit:cover;border-radius:12px"><button class="btn" data-act="radd">Recept opslaan</button></div>`}};
+async function loadHue(){try{const r=await fetch('/api/ha/scenes');const j=await r.json();S.hsc=r.ok?(j.scenes||[]).filter(x=>!(D.scn||[]).some(c=>c.hue===x.id)):[];S.hmsg=r.ok?(S.hsc.length?'':'Geen nieuwe scènes gevonden.'):(j.error||'Mislukt')}catch(e){S.hmsg='Mislukt'}render()}
 function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{value:''}).value.trim();
+ if(a==='hadd'){const h=(S.hsc||[])[i];if(!h)return true;const sel=document.getElementById('hr'+i);(D.scn=D.scn||[]).push({id:'h'+Date.now(),n:h.naam,hue:h.id,room:sel?sel.value:S.rooms[0].id});S.hsc.splice(i,1);return true}
  if(a==='gsel'){const e=t.dataset.e;S.gn=v('gn');const L=S.gsel||(S.gsel=[]);const k=L.indexOf(e);k<0?L.push(e):L.splice(k,1);return true}
  if(a==='ssel'){const id=t.dataset.r;S.sn=v('sn');const rs=[...new Set(allLights().map(x=>x.r.id))];const L=S.ssel||(S.ssel=rs.slice());const k=L.indexOf(id);k<0?L.push(id):L.splice(k,1);return true}
  if(a==='gadd'){const n=v('gn'),L=S.gsel||[];if(!n||!L.length){S.gn=n;return true}(D.groups=D.groups||[]).push({id:'g'+Date.now(),n,e:L.slice()});S.gsel=[];S.gn='';return true}
@@ -487,7 +494,9 @@ function render(){
  if(can('licht')&&r.lights.length){
   const aan=r.lights.filter(l=>l.on),avg=aan.length?Math.round(aan.reduce((a,l)=>a+l.b,0)/aan.length):0;
   L+=`<h2>Lampen in ${r.name.toLowerCase()}</h2>`+(r.lights.length>1?`<div class="card master"><div class="row"><div><div class="name">Alle lampen</div><div class="state" id="mstate">${aan.length} van ${r.lights.length} aan</div></div><button class="tog" data-act="allon" aria-pressed="${aan.length>0}" aria-label="Alle lampen aan of uit"></button></div><div class="bri"><input type="range" min="1" max="100" value="${avg||60}" data-act="allbri" aria-label="Helderheid alle lampen"><span class="state" id="mpct">${avg}%</span></div></div>`:'')+`<div class="grid">${r.lights.map(lampHTML).join('')}${S.role==='owner'?(r.sn?sensorHTML(r):'')+(r.rc?remoteHTML(r):''):''}</div>`}
- if(can('sfeer')&&r.lights.length)L+=`<h2>Sfeer</h2><div class="chips">${Object.keys(S.scenes).map(k=>`<button class="chip" data-act="scene" data-k="${k}" aria-pressed="${S.scene===k}">${k}</button>`).join('')}</div>`;
+ const rsc=(D.scn||[]).filter(c=>c.hue&&c.room===r.id);
+ if(can('sfeer')&&r.lights.length&&rsc.length)L+=`<h2>Sfeer</h2><div class="chips">${rsc.map(c=>`<button class="chip" data-act="sapply" data-s="${c.id}">${esc(c.n)}</button>`).join('')}</div>`;
+ else if(can('sfeer')&&r.lights.length)L+=`<h2>Sfeer</h2><div class="chips">${Object.keys(S.scenes).map(k=>`<button class="chip" data-act="scene" data-k="${k}" aria-pressed="${S.scene===k}">${k}</button>`).join('')}</div>`;
  if(can('muziek')&&r.sp)Rr+=`<h2>Muziek</h2><div class="card"><div class="name">Speaker ${esc(r.name.toLowerCase())}</div><div class="state">${S.media.track}</div>
  <div class="mini"><button class="btn" data-act="play">${S.media.playing?'Pauze':'Afspelen'}</button><span class="state">Volume ${S.media.vol}%</span></div>
  <input type="range" min="0" max="100" value="${S.media.vol}" data-act="vol" aria-label="Volume"></div>`;
@@ -523,12 +532,15 @@ document.addEventListener('click',e=>{
   if(S.film){w.lights.forEach(l=>{l.on=false});S.media.playing=false;S.media.track='Gepauzeerd'}
   else{w.lights.forEach((l,i)=>{l.on=i<2;l.b=[70,45][i]||l.b})}
   S.scene=null}
+ if(a==='goroom'){S.room=t.dataset.r;S.view='home';render();return}
+ if(a==='rall'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const any=q.lights.some(l=>l.on);q.lights.forEach(l=>l.on=!any);S.scene=null}}
+ if(a==='hload'){loadHue();return}
  if(a==='lcolbtn'){const k=S.room+':'+i0(t);S.col=S.col===k?null:k}
  if(a==='lcol'){const l=r.lights[+t.dataset.i],c=colSpec(t.dataset.v);if(l&&l.e)applyItems([{e:l.e,on:true,b:l.b,...c}])}
  if(a==='gcolbtn')S.gcol=S.gcol===t.dataset.g?null:t.dataset.g;
  if(a==='gtog'||a==='gcol'||a==='sapply'){
   const A=allLights();let items=[];
-  if(a==='sapply'){const c=(D.scn||[]).find(x=>x.id===t.dataset.s);if(c)items=c.items.filter(it=>A.some(x=>x.e===it.e))}
+  if(a==='sapply'){const c=(D.scn||[]).find(x=>x.id===t.dataset.s);if(c&&c.hue){fetch('/api/hscene',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:c.id})}).then(()=>setTimeout(()=>pollLights(true),1500)).catch(()=>{})}else if(c)items=c.items.filter(it=>A.some(x=>x.e===it.e))}
   else{const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const ls=A.filter(x=>g.e.includes(x.e));
    if(a==='gtog'){const on=!ls.some(x=>x.l.on);items=ls.map(x=>on?{e:x.e,on:true,b:x.l.b}:{e:x.e,on:false})}
    else{const c=colSpec(t.dataset.v);items=ls.map(x=>({e:x.e,on:true,b:x.l.b,...c}))}}}
@@ -549,6 +561,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
  if(a==='bri'||a==='allbri'){pushAll();return}
  if(a==='lpick'){const l=cur().lights[+t.dataset.i];if(l&&l.e){const [h,sa]=hex2hs(t.value);applyItems([{e:l.e,on:true,b:l.b,h,s:sa}]);render()}return}
  if(a==='gpick'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const [h,sa]=hex2hs(t.value);applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b:x.l.b,h,s:sa})));render()}return}
+ if(a==='rbri'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const v=+t.value;q.lights.forEach(l=>{l.b=v;l.on=true});pushAll();render()}return}
  if(a==='gbri'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const b=+t.value;applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b})));render()}return}
  if(a==='trep'){S.tn=(document.getElementById('tn')||{}).value||'';S.tpv=(document.getElementById('tp')||{}).value||'1';S.trep=t.value;render();return}
  if(a==='rphoto'||a==='rnewphoto'){const f=t.files&&t.files[0];if(!f)return;readImg(f,d=>{if(a==='rphoto'){D.recipes[+t.dataset.i].img=d;S.or=+t.dataset.i;save();render()}else{S.rimg=d;const p=document.getElementById('rprev');if(p){p.src=d;p.style.display='block'}}});return}if(a==='guntil'){const g=D.guests[+t.dataset.i];g.until=t.value;S.og=g.id;save();render();return}

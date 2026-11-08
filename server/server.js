@@ -181,6 +181,23 @@ http.createServer(async (req, res) => {
       return json(res, 405, { error: 'Niet toegestaan' });
     }
 
+    if (p === '/api/hscene' && req.method === 'POST') {
+      const s = session(req);
+      if (!s) return json(res, 401, { error: 'Niet ingelogd' });
+      const cfg = haCfg(); if (!cfg) return json(res, 400, { error: 'Home Assistant is nog niet ingesteld.' });
+      const b = JSON.parse(await body(req));
+      const d = loadData();
+      const sc = d && (d.scn || []).find(x => x.id === b.id && x.hue);
+      if (!sc) return json(res, 404, { error: 'Scène niet gevonden' });
+      if (s.role !== 'owner') {
+        const room = loadRooms().find(r => r.id === sc.room);
+        const g = findGuest(s.ref);
+        if (!room || room.own || !g || expired(g) || !(g.rp && g.rp[room.id] && g.rp[room.id].sfeer)) return json(res, 403, { error: 'Geen toegang tot deze scène' });
+      }
+      if (!/^scene\.[\w]+$/.test(sc.hue)) return json(res, 400, { error: 'Ongeldige scène' });
+      try { await haCall(cfg, '/api/services/scene/turn_on', { entity_id: sc.hue }); return json(res, 200, { ok: true }); }
+      catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
+    }
     if (p === '/api/lights' || p === '/api/light' || p === '/api/apply') {
       const s = session(req);
       if (!s) return json(res, 401, { error: 'Niet ingelogd' });
@@ -254,6 +271,11 @@ http.createServer(async (req, res) => {
       };
       try {
         if (p === '/api/ha/status') { const c = await ha('/api/config'); return json(res, 200, { ok: true, naam: c.location_name, versie: c.version }); }
+        if (p === '/api/ha/scenes') {
+          const all = await ha('/api/states');
+          const out = all.filter(e => e.entity_id.startsWith('scene.')).map(e => ({ id: e.entity_id, naam: e.attributes.name || e.attributes.friendly_name || e.entity_id, groep: e.attributes.group_name || '' }));
+          return json(res, 200, { scenes: out });
+        }
         if (p === '/api/ha/entities') {
           const all = await ha('/api/states');
           const keep = new Set(['light', 'climate', 'media_player', 'switch', 'binary_sensor', 'sensor', 'camera', 'lock']);
