@@ -229,7 +229,10 @@ const LAST={};const i0=t=>+t.dataset.i;
 const WH=[[2200,'#ffb46b','Kaars'],[2700,'#ffc98e','Warm wit'],[4000,'#fff1e0','Neutraal'],[6000,'#dfe9ff','Koel wit']];
 const CO=[[0,100,'Rood'],[28,100,'Oranje'],[50,100,'Geel'],[120,100,'Groen'],[175,100,'Turquoise'],[230,100,'Blauw'],[270,100,'Paars'],[320,80,'Roze']];
 const hasC=l=>(l.cm||[]).some(m=>['hs','xy','rgb','rgbw','rgbww'].includes(m)),hasW=l=>hasC(l)||(l.cm||[]).includes('color_temp');
-const swatches=(act,extra,cur)=>(`<div class="sw">`+WH.map(([k,c,n])=>`<button style="background:${c}" data-act="${act}" ${extra} data-v="k:${k}" aria-label="${n}" title="${n}" aria-pressed="${cur&&cur.k===k}"></button>`).join('')+(cur&&cur.cm&&!hasC(cur)?[]:CO).map(([h,sa,n])=>`<button style="background:hsl(${h} ${sa}% 55%)" data-act="${act}" ${extra} data-v="c:${h}:${sa}" aria-label="${n}" title="${n}" aria-pressed="${!!(cur&&cur.hs&&Math.abs(cur.hs[0]-h)<6)}"></button>`).join('')+`</div>`);
+const swatches=(act,extra,cur)=>(`<div class="sw">`+WH.map(([k,c,n])=>`<button style="background:${c}" data-act="${act}" ${extra} data-v="k:${k}" aria-label="${n}" title="${n}" aria-pressed="${cur&&cur.k===k}"></button>`).join('')+(cur&&cur.cm&&!hasC(cur)?[]:CO).map(([h,sa,n])=>`<button style="background:hsl(${h} ${sa}% 55%)" data-act="${act}" ${extra} data-v="c:${h}:${sa}" aria-label="${n}" title="${n}" aria-pressed="${!!(cur&&cur.hs&&Math.abs(cur.hs[0]-h)<6)}"></button>`).join('')+`</div>`+((cur&&cur.cm&&!hasC(cur))?'':picker(act==='lcol'?'lpick':'gpick',extra,cur)));
+const hs2hex=(h,sa)=>{const c=sa/100,x=c*(1-Math.abs((h/60)%2-1)),m=1-c;let r,g,b;const q=Math.floor(h/60)%6;[r,g,b]=[[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][q];return '#'+[r,g,b].map(v=>Math.round((v+m)*255).toString(16).padStart(2,'0')).join('')};
+const hex2hs=hx=>{const r=parseInt(hx.slice(1,3),16)/255,g=parseInt(hx.slice(3,5),16)/255,b=parseInt(hx.slice(5,7),16)/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d){h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;h=Math.round((h*60+360)%360)}return [h,Math.round(mx?d/mx*100:0)]};
+const picker=(act,extra,cur)=>`<label class="state" style="display:flex;align-items:center;gap:10px;margin-top:10px">Eigen kleur <input type="color" data-act="${act}" ${extra} value="${cur&&cur.hs?hs2hex(cur.hs[0],cur.hs[1]):'#ff9a3c'}" aria-label="Eigen kleur kiezen" style="width:56px;height:36px;padding:0;border:0;background:none"></label>`;
 const colSpec=v=>{const p=v.split(':');return p[0]==='k'?{k:+p[1]}:{h:+p[1],s:+p[2]}};
 const allLights=()=>{const o=[];S.rooms.forEach(r=>{if(!can('licht',r.id))return;r.lights.forEach((l,i)=>{if(l.e)o.push({e:l.e,r,l,i,label:r.name+' · '+l.n})})});return o};
 function applyItems(items){
@@ -544,6 +547,8 @@ if(t.dataset.act==='vol'){S.media.vol=+t.value;t.closest('.card').querySelector(
 });
 document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
  if(a==='bri'||a==='allbri'){pushAll();return}
+ if(a==='lpick'){const l=cur().lights[+t.dataset.i];if(l&&l.e){const [h,sa]=hex2hs(t.value);applyItems([{e:l.e,on:true,b:l.b,h,s:sa}]);render()}return}
+ if(a==='gpick'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const [h,sa]=hex2hs(t.value);applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b:x.l.b,h,s:sa})));render()}return}
  if(a==='gbri'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const b=+t.value;applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b})));render()}return}
  if(a==='trep'){S.tn=(document.getElementById('tn')||{}).value||'';S.tpv=(document.getElementById('tp')||{}).value||'1';S.trep=t.value;render();return}
  if(a==='rphoto'||a==='rnewphoto'){const f=t.files&&t.files[0];if(!f)return;readImg(f,d=>{if(a==='rphoto'){D.recipes[+t.dataset.i].img=d;S.or=+t.dataset.i;save();render()}else{S.rimg=d;const p=document.getElementById('rprev');if(p){p.src=d;p.style.display='block'}}});return}if(a==='guntil'){const g=D.guests[+t.dataset.i];g.until=t.value;S.og=g.id;save();render();return}
