@@ -271,6 +271,23 @@ http.createServer(async (req, res) => {
       };
       try {
         if (p === '/api/ha/status') { const c = await ha('/api/config'); return json(res, 200, { ok: true, naam: c.location_name, versie: c.version }); }
+        if (p === '/api/ha/say' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          const text = String(b.text || '').trim().slice(0, 500);
+          if (!text) return json(res, 400, { error: 'Typ eerst een bericht.' });
+          if (b.mode === 'command') {
+            try { await haCall(cfg, '/api/services/google_assistant_sdk/send_text_command', { command: text }); return json(res, 200, { ok: true }); }
+            catch (e) { return json(res, 400, { error: /404|400/.test(e.message) ? 'De integratie “Google Assistant SDK” is nog niet geïnstalleerd in Home Assistant.' : e.message }); }
+          }
+          const targets = (Array.isArray(b.targets) ? b.targets : []).filter(x => /^media_player\.[\w]+$/.test(x)).slice(0, 20);
+          if (!targets.length) return json(res, 400, { error: 'Kies minstens één speaker.' });
+          const all = await ha('/api/states');
+          const tts = all.map(e => e.entity_id).filter(id => id.startsWith('tts.'));
+          const pick = tts.find(id => id.includes('google')) || tts[0];
+          if (!pick) return json(res, 400, { error: 'Home Assistant heeft nog geen spraakdienst. Voeg de integratie “Google Translate text-to-speech” toe.' });
+          for (const t of targets) await haCall(cfg, '/api/services/tts/speak', { entity_id: pick, media_player_entity_id: t, message: text, language: 'nl' });
+          return json(res, 200, { ok: true, speakers: targets.length });
+        }
         if (p === '/api/ha/scenes') {
           const all = await ha('/api/states');
           const out = all.filter(e => e.entity_id.startsWith('scene.')).map(e => ({ id: e.entity_id, naam: e.attributes.name || e.attributes.friendly_name || e.entity_id, groep: e.attributes.group_name || '' }));
