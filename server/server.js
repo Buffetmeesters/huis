@@ -49,6 +49,13 @@ function loadData() { const r = q.get.get('data'); try { return r ? JSON.parse(r
 function findGuest(id) { const d = loadData(); return d && Array.isArray(d.guests) ? d.guests.find(g => g.id === id) : null; }
 const expired = g => g.until && g.until < today();
 
+function turnOnData(entity, b) {
+  const data = { entity_id: entity };
+  if (Number.isFinite(+b.b) && b.b !== null) data.brightness_pct = Math.min(100, Math.max(1, Math.round(+b.b)));
+  if (Number.isFinite(+b.k)) data.color_temp_kelvin = Math.min(10000, Math.max(1500, Math.round(+b.k)));
+  else if (Number.isFinite(+b.h) && Number.isFinite(+b.s)) data.hs_color = [Math.min(360, Math.max(0, +b.h)), Math.min(100, Math.max(0, +b.s))];
+  return data;
+}
 function haCfg() { const r = q.get.get('ha'); const c = r ? JSON.parse(r.v) : null; return c && c.url && c.token ? c : null; }
 function loadRooms() { const r = q.get.get('rooms'); try { const x = r ? JSON.parse(r.v) : []; return Array.isArray(x) ? x : []; } catch { return []; } }
 async function haCall(cfg, path, payload) {
@@ -174,7 +181,7 @@ http.createServer(async (req, res) => {
       return json(res, 405, { error: 'Niet toegestaan' });
     }
 
-    if (p === '/api/lights' || p === '/api/light') {
+    if (p === '/api/lights' || p === '/api/light' || p === '/api/apply') {
       const s = session(req);
       if (!s) return json(res, 401, { error: 'Niet ingelogd' });
       const cfg = haCfg();
@@ -195,7 +202,7 @@ http.createServer(async (req, res) => {
             if (!l.e || !allowed(room, l)) return;
             const e = st.get(l.e); if (!e) return;
             const br = e.attributes && e.attributes.brightness;
-            out[room.id + ':' + room.lights.indexOf(l)] = { on: e.state === 'on', b: br ? Math.max(1, Math.round(br / 2.55)) : null, bad: e.state === 'unavailable' };
+            out[room.id + ':' + room.lights.indexOf(l)] = { on: e.state === 'on', b: br ? Math.max(1, Math.round(br / 2.55)) : null, bad: e.state === 'unavailable', cm: e.attributes.supported_color_modes || [], hs: e.attributes.hs_color || null, k: e.attributes.color_temp_kelvin || null };
           });
           return json(res, 200, { lights: out });
         }
@@ -206,12 +213,21 @@ http.createServer(async (req, res) => {
           if (!light || !light.e) return json(res, 404, { error: 'Lamp is niet gekoppeld' });
           if (!allowed(room, light)) return json(res, 403, { error: 'Geen toegang tot deze lamp' });
           if (b.on === false) await haCall(cfg, '/api/services/light/turn_off', { entity_id: light.e });
-          else {
-            const data = { entity_id: light.e };
-            if (Number.isFinite(+b.b)) data.brightness_pct = Math.min(100, Math.max(1, Math.round(+b.b)));
-            await haCall(cfg, '/api/services/light/turn_on', data);
-          }
+          else await haCall(cfg, '/api/services/light/turn_on', turnOnData(light.e, b));
           return json(res, 200, { ok: true });
+        }
+        if (p === '/api/apply' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          const ok = new Set();
+          for (const room of rooms) room.lights.forEach(l => { if (l.e && allowed(room, l)) ok.add(l.e); });
+          let done = 0, skipped = 0;
+          for (const it of (Array.isArray(b.items) ? b.items.slice(0, 100) : [])) {
+            if (!it || !ok.has(it.e)) { skipped++; continue; }
+            if (it.on === false) await haCall(cfg, '/api/services/light/turn_off', { entity_id: it.e });
+            else await haCall(cfg, '/api/services/light/turn_on', turnOnData(it.e, it));
+            done++;
+          }
+          return json(res, 200, { ok: true, done, skipped });
         }
       } catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
       return json(res, 405, { error: 'Niet toegestaan' });
