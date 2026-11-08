@@ -220,7 +220,19 @@ const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
 const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let GUEST=false;
+let GUEST=false,HAL=[];
+const LAST={};
+function pushAll(){S.rooms.forEach(r=>r.lights.forEach((l,i)=>{if(!l.e)return;const k=r.id+':'+i,o=LAST[k];if(!o)return;
+ if(o.on===!!l.on&&(!l.on||o.b===l.b))return;
+ LAST[k]={on:!!l.on,b:l.b};
+ fetch('/api/light',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,i,on:!!l.on,b:l.b})}).then(x=>{if(!x.ok)pollLights(true)}).catch(()=>{})}))}
+let polling=false;
+async function pollLights(force){if(polling||document.hidden&&!force)return;polling=true;
+ try{const r=await fetch('/api/lights');if(r.status===401){location.reload();return}if(r.status!==200)return;const j=(await r.json()).lights||{};let ch=false;
+  S.rooms.forEach(rm=>rm.lights.forEach((l,i)=>{const k=rm.id+':'+i,v=j[k];if(!v)return;
+   const b=v.b==null?l.b:v.b;if(!!l.on!==v.on||(v.on&&l.b!==b))ch=true;l.on=v.on;l.b=b;LAST[k]={on:v.on,b}}));
+  const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
+document.addEventListener('pointerdown',()=>{window.__drag=1});document.addEventListener('pointerup',()=>{setTimeout(()=>{window.__drag=0},400)});
 const srvPut=(k,v)=>{if(GUEST)return;try{fetch('/api/state/'+k,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(v)}).catch(()=>{})}catch(e){}};
 const save=()=>{if(GUEST)return;try{localStorage.setItem('huis-d2',JSON.stringify(D));if(S.redit)localStorage.setItem('huis-r',JSON.stringify(S.rooms))}catch(e){}srvPut('data',D);if(S.redit)srvPut('rooms',S.rooms)};
 const opts=sel=>D.who.map(w=>`<option ${w===sel?'selected':''}>${w}</option>`).join('');
@@ -265,7 +277,7 @@ ruimtes(){
 <div class="state">Verdieping</div><select data-act="rfl" data-r="${r.id}" aria-label="Verdieping">${FL.map((n,k)=>`<option value="${k}" ${k===r.f?'selected':''}>${n}</option>`).join('')}</select></div>
 <div class="state" style="margin-top:10px">Apparaten en toegang</div><div class="chips">${Object.keys(FX).map(k=>`<button class="chip" data-act="rtog" data-r="${r.id}" data-k="${k}" aria-pressed="${!!r[k]}">${FX[k]}</button>`).join('')}</div>
 <div class="state" style="margin-top:10px">Lampen</div>
-${r.lights.map((l,j)=>`<div class="mini"><input style="flex:1" data-act="lname" data-r="${r.id}" data-j="${j}" value="${esc(l.n)}" aria-label="Naam lamp ${j+1}"><button class="btn alt" data-act="ldel" data-r="${r.id}" data-j="${j}">Wis</button></div>`).join('')||'<div class="state">Geen lampen.</div>'}
+${r.lights.map((l,j)=>`<div class="mini"><input style="flex:1" data-act="lname" data-r="${r.id}" data-j="${j}" value="${esc(l.n)}" aria-label="Naam lamp ${j+1}">${HAL.length?`<select data-act="lent" data-r="${r.id}" data-j="${j}" aria-label="Koppeling met Home Assistant" style="max-width:46%"><option value="">Niet gekoppeld</option>${HAL.map(x=>`<option value="${x.id}" ${x.id===l.e?'selected':''}>${esc(x.naam)}</option>`).join('')}</select>`:''}<button class="btn alt" data-act="ldel" data-r="${r.id}" data-j="${j}">Wis</button></div>`).join('')||'<div class="state">Geen lampen.</div>'}
 <div class="mini"><input style="flex:1" id="ln_${r.id}" placeholder="Nieuwe lamp"><button class="btn" data-act="ladd" data-r="${r.id}">Lamp toevoegen</button></div>
 <div class="mini">${prot?'<span class="state">Deze ruimte is gekoppeld aan de '+(r.id==='woon'?'sync box en speaker':'videodeurbel')+' en kan niet worden verwijderd.</span>':`<button class="btn alt" data-act="roomdel" data-r="${r.id}">${S.cd===r.id?'Zeker weten? Tik nogmaals':'Verwijder ruimte'}</button>`}</div></details>`})});
  return h+`<h2>Ruimte toevoegen</h2><div class="card form"><input id="rnn" placeholder="Naam van de ruimte"><select id="rnf">${FL.map((n,k)=>`<option value="${k}">${n}</option>`).join('')}</select><button class="btn" data-act="roomadd">Ruimte toevoegen</button></div>`},
@@ -467,7 +479,7 @@ document.addEventListener('click',e=>{
   if(S.film){w.lights.forEach(l=>{l.on=false});S.media.playing=false;S.media.track='Gepauzeerd'}
   else{w.lights.forEach((l,i)=>{l.on=i<2;l.b=[70,45][i]||l.b})}
   S.scene=null}
- render();
+ pushAll();render();
 });
 document.addEventListener('input',e=>{
  const t=e.target;
@@ -480,11 +492,13 @@ document.addEventListener('input',e=>{
 if(t.dataset.act==='vol'){S.media.vol=+t.value;t.closest('.card').querySelector('.mini .state').textContent='Volume '+S.media.vol+'%'}
 });
 document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
+ if(a==='bri'||a==='allbri'){pushAll();return}
  if(a==='trep'){S.tn=(document.getElementById('tn')||{}).value||'';S.tpv=(document.getElementById('tp')||{}).value||'1';S.trep=t.value;render();return}
  if(a==='rphoto'||a==='rnewphoto'){const f=t.files&&t.files[0];if(!f)return;readImg(f,d=>{if(a==='rphoto'){D.recipes[+t.dataset.i].img=d;S.or=+t.dataset.i;save();render()}else{S.rimg=d;const p=document.getElementById('rprev');if(p){p.src=d;p.style.display='block'}}});return}if(a==='guntil'){const g=D.guests[+t.dataset.i];g.until=t.value;S.og=g.id;save();render();return}
- if(a==='rname'||a==='rfl'||a==='lname'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(!q)return;
+ if(a==='rname'||a==='rfl'||a==='lname'||a==='lent'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(!q)return;
   if(a==='rname'){const n=t.value.trim();if(n)q.name=n}
   else if(a==='rfl')q.f=+t.value;
+  else if(a==='lent'){const l=q.lights[+t.dataset.j];if(l){if(t.value)l.e=t.value;else delete l.e}}
   else{const n=t.value.trim(),l=q.lights[+t.dataset.j];if(n&&l)l.n=n}
   S.redit=1;S.orr=q.id;save();render()}});
 document.addEventListener('click',async e=>{if(e.target.id==='logout'){try{localStorage.removeItem('huis-d2');localStorage.removeItem('huis-r')}catch(x){}try{await fetch('/api/logout',{method:'POST'})}catch(x){}location.reload()}});
@@ -503,8 +517,10 @@ D.tasks.forEach((t,k)=>{if(!t.id)t.id='t'+k+'x'+Date.now();if(t.rep===undefined)
 if(!D.afval)D.afval=[];seedAfval();if(!D.addr)D.addr='Frans Staelstraat 29, 5281 CW Boxtel';
 if(!D.notes)D.notes=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
 if(ME){D.me=ME.name;if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
+if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200)HAL=(await r.json()).entiteiten.filter(x=>x.id.startsWith('light.'))}catch(e){}}
 render();
 if(!fromSrv)save();
+pollLights(true);setInterval(pollLights,4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLights(true)});
 })();
 </script>
 </body>

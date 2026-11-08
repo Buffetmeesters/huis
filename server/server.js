@@ -49,6 +49,18 @@ function loadData() { const r = q.get.get('data'); try { return r ? JSON.parse(r
 function findGuest(id) { const d = loadData(); return d && Array.isArray(d.guests) ? d.guests.find(g => g.id === id) : null; }
 const expired = g => g.until && g.until < today();
 
+function haCfg() { const r = q.get.get('ha'); const c = r ? JSON.parse(r.v) : null; return c && c.url && c.token ? c : null; }
+function loadRooms() { const r = q.get.get('rooms'); try { const x = r ? JSON.parse(r.v) : []; return Array.isArray(x) ? x : []; } catch { return []; } }
+async function haCall(cfg, path, payload) {
+  const r = await fetch(cfg.url + path, {
+    method: payload ? 'POST' : 'GET',
+    headers: { Authorization: 'Bearer ' + cfg.token, 'content-type': 'application/json' },
+    body: payload ? JSON.stringify(payload) : undefined,
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) throw new Error('Home Assistant antwoordde met ' + r.status);
+  return r.json();
+}
 function cookie(req) {
   const m = (req.headers.cookie || '').match(/(?:^|;\s*)sid=([a-f0-9]{64})/);
   return m ? m[1] : null;
@@ -162,6 +174,48 @@ http.createServer(async (req, res) => {
       return json(res, 405, { error: 'Niet toegestaan' });
     }
 
+    if (p === '/api/lights' || p === '/api/light') {
+      const s = session(req);
+      if (!s) return json(res, 401, { error: 'Niet ingelogd' });
+      const cfg = haCfg();
+      if (!cfg) return json(res, 200, { lights: {} });
+      const rooms = loadRooms();
+      const allowed = (room, light) => {
+        if (s.role === 'owner') return true;
+        if (room.own) return false;
+        const g = findGuest(s.ref);
+        return !!(g && !expired(g) && g.rp && g.rp[room.id] && g.rp[room.id].licht);
+      };
+      try {
+        if (p === '/api/lights' && req.method === 'GET') {
+          const all = await haCall(cfg, '/api/states');
+          const st = new Map(all.map(e => [e.entity_id, e]));
+          const out = {};
+          for (const room of rooms) room.lights.forEach(l => {
+            if (!l.e || !allowed(room, l)) return;
+            const e = st.get(l.e); if (!e) return;
+            const br = e.attributes && e.attributes.brightness;
+            out[room.id + ':' + room.lights.indexOf(l)] = { on: e.state === 'on', b: br ? Math.max(1, Math.round(br / 2.55)) : null, bad: e.state === 'unavailable' };
+          });
+          return json(res, 200, { lights: out });
+        }
+        if (p === '/api/light' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          const room = rooms.find(r => r.id === b.room);
+          const light = room && room.lights[b.i | 0];
+          if (!light || !light.e) return json(res, 404, { error: 'Lamp is niet gekoppeld' });
+          if (!allowed(room, light)) return json(res, 403, { error: 'Geen toegang tot deze lamp' });
+          if (b.on === false) await haCall(cfg, '/api/services/light/turn_off', { entity_id: light.e });
+          else {
+            const data = { entity_id: light.e };
+            if (Number.isFinite(+b.b)) data.brightness_pct = Math.min(100, Math.max(1, Math.round(+b.b)));
+            await haCall(cfg, '/api/services/light/turn_on', data);
+          }
+          return json(res, 200, { ok: true });
+        }
+      } catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
+      return json(res, 405, { error: 'Niet toegestaan' });
+    }
     if (p.startsWith('/api/ha/')) {
       const s = session(req);
       if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
