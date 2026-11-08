@@ -162,7 +162,43 @@ http.createServer(async (req, res) => {
       return json(res, 405, { error: 'Niet toegestaan' });
     }
 
+    if (p.startsWith('/api/ha/')) {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
+      const r = q.get.get('ha'); const cfg = r ? JSON.parse(r.v) : {};
+      if (p === '/api/ha/config' && req.method === 'GET') return json(res, 200, { url: cfg.url || '', tokenSet: !!cfg.token });
+      if (p === '/api/ha/config' && req.method === 'PUT') {
+        const b = JSON.parse(await body(req));
+        let u = String(b.url || '').trim().replace(/\/+$/, '');
+        if (!/^https?:\/\/[\w.\-]+(:\d+)?$/.test(u)) return json(res, 400, { error: 'Adres moet er zo uitzien: http://192.168.178.68:8123' });
+        const token = b.token ? String(b.token).trim() : cfg.token;
+        if (!token) return json(res, 400, { error: 'Vul het token in.' });
+        q.put.run('ha', JSON.stringify({ url: u, token }), Date.now());
+        return json(res, 200, { ok: true });
+      }
+      if (!cfg.url || !cfg.token) return json(res, 400, { error: 'Home Assistant is nog niet ingesteld.' });
+      const ha = async (path) => {
+        const r = await fetch(cfg.url + path, { headers: { Authorization: 'Bearer ' + cfg.token }, signal: AbortSignal.timeout(8000) });
+        if (!r.ok) throw new Error('Home Assistant antwoordde met ' + r.status + (r.status === 401 ? ' (token klopt niet)' : ''));
+        return r.json();
+      };
+      try {
+        if (p === '/api/ha/status') { const c = await ha('/api/config'); return json(res, 200, { ok: true, naam: c.location_name, versie: c.version }); }
+        if (p === '/api/ha/entities') {
+          const all = await ha('/api/states');
+          const keep = new Set(['light', 'climate', 'media_player', 'switch', 'binary_sensor', 'sensor', 'camera', 'lock']);
+          const out = all.filter(e => keep.has(e.entity_id.split('.')[0]) && !(e.entity_id.startsWith('sensor.') && !e.attributes.device_class))
+            .map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state }));
+          return json(res, 200, { aantal: out.length, entiteiten: out });
+        }
+      } catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
+      return json(res, 404, { error: 'Onbekend' });
+    }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
+    if (p === '/ha') {
+      const s = session(req);
+      if (s && s.role === 'owner') return file(res, 'ha.html', 'text/html; charset=utf-8');
+    }
     // Pagina's: zonder sessie alleen de loginpagina
     if (!session(req) || q.ownerCount.get().n === 0) return file(res, 'login.html', 'text/html; charset=utf-8');
     return file(res, 'index.html', 'text/html; charset=utf-8');

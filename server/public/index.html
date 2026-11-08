@@ -164,6 +164,7 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 <header>
  <div><h1 id="title">Thuis</h1><div class="sub" id="sub"></div></div>
  <div class="grow"></div>
+ <a class="chip" id="hal" href="/ha" style="text-decoration:none">Home Assistant</a>
  <button class="chip" id="logout" type="button">Uitloggen</button>
  <div class="seg" role="group" aria-label="Weergave"><button data-role="owner" aria-pressed="true">Eigenaar</button><button data-role="guest" aria-pressed="false">Gast</button></div>
 </header>
@@ -501,7 +502,7 @@ if(!GUEST)try{const rr=JSON.parse(localStorage.getItem('huis-r'));if(Array.isArr
 D.tasks.forEach((t,k)=>{if(!t.id)t.id='t'+k+'x'+Date.now();if(t.rep===undefined)t.rep=''});if(!D.log)D.log=D.tasks.filter(t=>t.by).map(t=>({tid:t.id,w:t.by,p:t.p,d:iso(0),n:t.n}));resetDue();
 if(!D.afval)D.afval=[];seedAfval();if(!D.addr)D.addr='Frans Staelstraat 29, 5281 CW Boxtel';
 if(!D.notes)D.notes=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
-if(ME){D.me=ME.name;if(GUEST){S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
+if(ME){D.me=ME.name;if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
 render();
 if(!fromSrv)save();
 })();
