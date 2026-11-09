@@ -203,12 +203,18 @@ http.createServer(async (req, res) => {
       try { await haCall(cfg, '/api/services/scene/turn_on', { entity_id: sc.hue }); return json(res, 200, { ok: true }); }
       catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
     }
-    if (p === '/api/lights' || p === '/api/light' || p === '/api/apply') {
+    if (p === '/api/lights' || p === '/api/light' || p === '/api/apply' || p === '/api/climate') {
       const s = session(req);
       if (!s) return json(res, 401, { error: 'Niet ingelogd' });
       const cfg = haCfg();
       if (!cfg) return json(res, 200, { lights: {} });
       const rooms = loadRooms();
+      const allowedKey = (room, key) => {
+        if (s.role === 'owner') return true;
+        if (room.own) return false;
+        const g = findGuest(s.ref);
+        return !!(g && !expired(g) && g.rp && g.rp[room.id] && g.rp[room.id][key]);
+      };
       const allowed = (room, light) => {
         if (s.role === 'owner') return true;
         if (room.own) return false;
@@ -227,6 +233,41 @@ http.createServer(async (req, res) => {
             out[room.id + ':' + room.lights.indexOf(l)] = { on: e.state === 'on', b: br ? Math.max(1, Math.round(br / 2.55)) : null, bad: e.state === 'unavailable', cm: e.attributes.supported_color_modes || [], hs: e.attributes.hs_color || null, k: e.attributes.color_temp_kelvin || null };
           });
           return json(res, 200, { lights: out });
+        }
+        if (p === '/api/climate' && req.method === 'GET') {
+          const all = await haCall(cfg, '/api/states');
+          const st = new Map(all.map(e => [e.entity_id, e]));
+          const out = {};
+          for (const room of rooms) {
+            if (!room.ce || !allowedKey(room, 'klimaat')) continue;
+            const e = st.get(room.ce); if (!e) continue;
+            const a = e.attributes || {};
+            out[room.id] = { mode: e.state, modes: a.hvac_modes || [], cur: a.current_temperature ?? null, set: a.temperature ?? null, min: a.min_temp ?? null, max: a.max_temp ?? null, step: a.target_temp_step || a.temp_step || null };
+          }
+          return json(res, 200, { climate: out });
+        }
+        if (p === '/api/climate' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          const room = rooms.find(r => r.id === b.room);
+          if (!room || !room.ce) return json(res, 404, { error: 'Airco is niet gekoppeld' });
+          if (!allowedKey(room, 'klimaat')) return json(res, 403, { error: 'Geen toegang tot deze airco' });
+          const e = (await haCall(cfg, '/api/states/' + room.ce));
+          const a = e.attributes || {};
+          if (typeof b.mode === 'string') {
+            if (b.mode !== 'off' && !(a.hvac_modes || []).includes(b.mode)) return json(res, 400, { error: 'Deze stand kent de airco niet' });
+            await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: b.mode });
+          } else if (b.on === true && e.state === 'off') {
+            const modes = a.hvac_modes || [];
+            const pick = ['cool', 'heat_cool', 'auto', 'heat'].find(m => modes.includes(m)) || modes.find(m => m !== 'off');
+            if (pick) await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: pick });
+          } else if (b.on === false && e.state !== 'off') {
+            await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: 'off' });
+          }
+          if (b.on !== false && b.temp !== undefined && b.temp !== null && Number.isFinite(+b.temp)) {
+            const lo = a.min_temp ?? 10, hi = a.max_temp ?? 35;
+            await haCall(cfg, '/api/services/climate/set_temperature', { entity_id: room.ce, temperature: Math.min(hi, Math.max(lo, +b.temp)) });
+          }
+          return json(res, 200, { ok: true });
         }
         if (p === '/api/light' && req.method === 'POST') {
           const b = JSON.parse(await body(req));

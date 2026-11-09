@@ -237,7 +237,7 @@ const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
 const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let GUEST=false,HAL=[],HAM=[];
+let GUEST=false,HAL=[],HAM=[],HAC=[];
 const LAST={};const i0=t=>+t.dataset.i;
 const WH=[[2200,'#ffb46b','Kaars'],[2700,'#ffc98e','Warm wit'],[4000,'#fff1e0','Neutraal'],[6000,'#dfe9ff','Koel wit']];
 const CO=[[0,100,'Rood'],[28,100,'Oranje'],[50,100,'Geel'],[120,100,'Groen'],[175,100,'Turquoise'],[230,100,'Blauw'],[270,100,'Paars'],[320,80,'Roze']];
@@ -263,7 +263,15 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
  try{const r=await fetch('/api/lights');if(r.status===401){location.reload();return}if(r.status!==200)return;const j=(await r.json()).lights||{};let ch=false;
   S.rooms.forEach(rm=>rm.lights.forEach((l,i)=>{const k=rm.id+':'+i,v=j[k];if(!v)return;
    const b=v.b==null?l.b:v.b;if(!!l.on!==v.on||(v.on&&l.b!==b))ch=true;l.on=v.on;l.b=b;l.cm=v.cm||[];l.hs=v.hs;l.k=v.k;LAST[k]={on:v.on,b}}));
+  try{const rc=await fetch('/api/climate');if(rc.status===200){const cj=(await rc.json()).climate||{};S.rooms.forEach(rm=>{const v=cj[rm.id];if(!v)return;const c=cc(rm);
+    const air=v.mode!=='off',set=v.set!=null?v.set:c.set;
+    if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
+    c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;LASTC[rm.id]={set,air}})}}catch(e){}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
+const LASTC={},CT={};
+function pushClim(){S.rooms.forEach(r=>{if(!r.ce)return;const c=cc(r),o=LASTC[r.id];if(!o)return;if(o.set===c.set&&o.air===c.air)return;
+ LASTC[r.id]={set:c.set,air:c.air};clearTimeout(CT[r.id]);
+ CT[r.id]=setTimeout(()=>{fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,temp:c.set,on:c.air})}).then(x=>{if(!x.ok)pollLights(true)}).catch(()=>{})},o.air!==c.air?0:700)})}
 document.addEventListener('pointerdown',()=>{window.__drag=1});document.addEventListener('pointerup',()=>{setTimeout(()=>{window.__drag=0},400)});
 const srvPut=(k,v)=>{if(GUEST)return;try{fetch('/api/state/'+k,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(v)}).catch(()=>{})}catch(e){}};
 const save=()=>{if(GUEST)return;try{localStorage.setItem('huis-d2',JSON.stringify(D));if(S.redit)localStorage.setItem('huis-r',JSON.stringify(S.rooms))}catch(e){}srvPut('data',D);if(S.redit)srvPut('rooms',S.rooms)};
@@ -323,7 +331,7 @@ ruimtes(){
   S.rooms.filter(r=>r.f===f).forEach(r=>{
    const prot=r.id==='woon'||r.id==='voordeur';
    h+=`<details class="card item" ${S.orr===r.id?'open':''}><summary class="name">${esc(r.name)} <span class="state">${r.lights.length} ${r.lights.length===1?'lamp':'lampen'}</span></summary>
-<div class="form" style="margin-top:10px;max-width:none"><div class="state">Naam</div><input data-act="rname" data-r="${r.id}" value="${esc(r.name)}" aria-label="Naam van de ruimte">
+${HAC.length?`<div class="form" style="margin-top:10px;max-width:none"><div class="state">Airco in Home Assistant</div><select data-act="cent" data-r="${r.id}" aria-label="Airco koppelen"><option value="">Niet gekoppeld</option>${HAC.map(x=>`<option value="${x.id}" ${x.id===r.ce?'selected':''}>${esc(x.naam)}</option>`).join('')}</select></div>`:''}<div class="form" style="margin-top:10px;max-width:none"><div class="state">Naam</div><input data-act="rname" data-r="${r.id}" value="${esc(r.name)}" aria-label="Naam van de ruimte">
 <div class="state">Verdieping</div><select data-act="rfl" data-r="${r.id}" aria-label="Verdieping">${FL.map((n,k)=>`<option value="${k}" ${k===r.f?'selected':''}>${n}</option>`).join('')}</select></div>
 <div class="state" style="margin-top:10px">Apparaten en toegang</div><div class="chips">${Object.keys(FX).map(k=>`<button class="chip" data-act="rtog" data-r="${r.id}" data-k="${k}" aria-pressed="${!!r[k]}">${FX[k]}</button>`).join('')}</div>
 <div class="state" style="margin-top:10px">Lampen</div>
@@ -463,7 +471,7 @@ function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{val
  else if(a==='ring'){S.ru=S.ru||{};const u=S.ru[i]||[],j=+t.dataset.j;S.ru[i]=u.includes(j)?u.filter(x=>x!==j):[...u,j];S.or=i}
  else if(a==='rimgdel'){delete D.recipes[i].img;S.or=i}
  else if(a==='rshop'){ING(D.recipes[i]).forEach((x,j)=>{if(rsel(i,j)&&!D.shop.some(s=>!s.g&&s.n.toLowerCase()===x.toLowerCase()))D.shop.push({n:x,g:0})});S.view='boodschappen'}
- else if(a==='ctp'||a==='ctm'||a==='cair'){const c=cc(S.rooms.find(x=>x.id===t.dataset.r));if(a==='cair')c.air=!c.air;else c.set=Math.max(15,Math.min(28,c.set+(a==='ctp'?1:-1)))}
+ else if(a==='ctp'||a==='ctm'||a==='cair'){const c=cc(S.rooms.find(x=>x.id===t.dataset.r));if(a==='cair')c.air=!c.air;else {const st=c.step||1;c.set=Math.max(c.min??15,Math.min(c.max??28,+(c.set+(a==='ctp'?st:-st)).toFixed(1)))}}
  else if(a==='avadd'){const t=v('avt');pdates(v('avd')).forEach(d=>{if(!D.afval.some(e=>e.t===t&&e.d===d))D.afval.push({t,d})})}
  else if(a==='avdel')D.afval.splice(i,1);
  else if(a==='avold')D.afval=D.afval.filter(e=>e.d>=iso(0));
@@ -537,11 +545,11 @@ document.addEventListener('click',e=>{
  if(a==='tog'){const l=r.lights[+t.dataset.i];l.on=!l.on;S.scene=null}
  if(a==='qlights'){S.rooms.forEach(q=>q.lights.forEach(l=>l.on=false));S.scene=null}
  if(a==='qair'){S.rooms.forEach(q=>{if(q.c)q.c.air=false})}
+
  if(a==='allon'){const any=r.lights.some(l=>l.on);r.lights.forEach(l=>l.on=!any);S.scene=null}
  if(a==='scene'){const p=S.scenes[t.dataset.k].p;r.lights.forEach((l,i)=>{const v=p[i]??0;l.on=v>0;if(v>0)l.b=v});S.scene=t.dataset.k}
  if(a==='play'){S.media.playing=!S.media.playing;S.media.track=S.media.playing?'Speellijst: Zondagmiddag':'Gepauzeerd'}
- if(a==='tp')S.clim.set=Math.min(28,S.clim.set+1);
- if(a==='tm')S.clim.set=Math.max(15,S.clim.set-1);
+ if(a==='tp'||a==='tm'){const c=S.clim,st=c.step||1;c.set=Math.max(c.min??15,Math.min(c.max??28,+(c.set+(a==='tp'?st:-st)).toFixed(1)))}
  if(a==='air')S.clim.air=!S.clim.air;
  if(a==='film'){S.film=!S.film;const w=S.rooms[0];
   if(S.film){w.lights.forEach(l=>{l.on=false});S.media.playing=false;S.media.track='Gepauzeerd'}
@@ -563,7 +571,7 @@ document.addEventListener('click',e=>{
    if(a==='gtog'){const on=!ls.some(x=>x.l.on);items=ls.map(x=>on?{e:x.e,on:true,b:x.l.b}:{e:x.e,on:false})}
    else{const c=colSpec(t.dataset.v);items=ls.map(x=>({e:x.e,on:true,b:x.l.b,...c}))}}}
   if(items.length)applyItems(items)}
- pushAll();render();
+ pushAll();pushClim();render();
 });
 document.addEventListener('input',e=>{
  const t=e.target;
@@ -584,9 +592,10 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
  if(a==='gbri'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const b=+t.value;applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b})));render()}return}
  if(a==='trep'){S.tn=(document.getElementById('tn')||{}).value||'';S.tpv=(document.getElementById('tp')||{}).value||'1';S.trep=t.value;render();return}
  if(a==='rphoto'||a==='rnewphoto'){const f=t.files&&t.files[0];if(!f)return;readImg(f,d=>{if(a==='rphoto'){D.recipes[+t.dataset.i].img=d;S.or=+t.dataset.i;save();render()}else{S.rimg=d;const p=document.getElementById('rprev');if(p){p.src=d;p.style.display='block'}}});return}if(a==='guntil'){const g=D.guests[+t.dataset.i];g.until=t.value;S.og=g.id;save();render();return}
- if(a==='rname'||a==='rfl'||a==='lname'||a==='lent'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(!q)return;
+ if(a==='rname'||a==='rfl'||a==='lname'||a==='lent'||a==='cent'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(!q)return;
   if(a==='rname'){const n=t.value.trim();if(n)q.name=n}
   else if(a==='rfl')q.f=+t.value;
+  else if(a==='cent'){if(t.value){q.ce=t.value;q.cl=1}else delete q.ce}
   else if(a==='lent'){const l=q.lights[+t.dataset.j];if(l){if(t.value)l.e=t.value;else delete l.e}}
   else{const n=t.value.trim(),l=q.lights[+t.dataset.j];if(n&&l)l.n=n}
   S.redit=1;S.orr=q.id;save();render()}});
@@ -606,7 +615,7 @@ D.tasks.forEach((t,k)=>{if(!t.id)t.id='t'+k+'x'+Date.now();if(t.rep===undefined)
 if(!D.afval)D.afval=[];seedAfval();if(!D.addr)D.addr='Frans Staelstraat 29, 5281 CW Boxtel';
 S.rooms.forEach(r=>{r.name=r.name.replace(/\s*\d+\s*m²\s*$/,'')});if(!D.notes)D.notes=[];if(!D.groups)D.groups=[];if(!D.scn)D.scn=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
 if(ME){D.me=ME.name==='Admin'?'Joshua':ME.name;{const h=document.getElementById('hal');if(h&&!GUEST){if(ME.admin){h.style.display=''}else if(ME.canCreateAdmin){h.textContent='Admin instellen';h.style.display=''}}}if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
-if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'))}}catch(e){}}
+if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'))}}catch(e){}}
 render();
 if(!fromSrv)save();
 pollLights(true);setInterval(pollLights,4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLights(true)});
