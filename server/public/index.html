@@ -266,15 +266,16 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
   try{const rc=await fetch('/api/climate');if(rc.status===200){const cj=(await rc.json()).climate||{};S.rooms.forEach(rm=>{const v=cj[rm.id];if(!v)return;const c=cc(rm);
     const air=v.mode!=='off',set=v.set!=null?v.set:c.set;
     const h=HOLD[rm.id];
-    if(h){const klaar=air===h.air&&(h.mode?v.mode===h.mode:(!air||h.set==null||Math.abs(set-h.set)<0.01));
+    if(h){const klaar=air===h.air&&(h.fan==null||v.fan===h.fan)&&(h.swing==null||v.swing===h.swing)&&(h.mode?v.mode===h.mode:(!air||h.set==null||Math.abs(set-h.set)<0.01));
      if(klaar)delete HOLD[rm.id];
-     else if(Date.now()<h.until){if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.modes=v.modes||[];return}
+     else if(Date.now()<h.until){if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.modes=v.modes||[];c.fans=v.fans||[];c.swings=v.swings||[];return}
      else{delete HOLD[rm.id];toast('De airco in '+rm.name+' heeft de opdracht niet uitgevoerd.')}}
     if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
-    c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];LASTC[rm.id]={set,air}})}}catch(e){}
+    c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];c.fan=v.fan;c.fans=v.fans||[];c.swing=v.swing;c.swings=v.swings||[];LASTC[rm.id]={set,air}})}}catch(e){}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
 const LASTC={},CT={},HOLD={};
 function toast(t){let d=document.getElementById('toast');if(!d){d=document.createElement('div');d.id='toast';d.setAttribute('role','status');d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:110px;max-width:90vw;background:#2b2b3a;color:#fff;padding:12px 16px;border-radius:14px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:.9rem';document.body.appendChild(d)}d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(()=>{d.style.display='none'},7000)}
+const climPost=(id,b)=>fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({room:id},b))}).then(climFail(id)).catch(()=>toast('Geen verbinding met de server.'));
 const climFail=(id)=>async x=>{if(x.ok)return;const j=await x.json().catch(()=>({}));toast(j.error||'De opdracht voor de airco is mislukt.');delete HOLD[id];pollLights(true)};
 function pushClim(){S.rooms.forEach(r=>{if(!r.ce)return;const c=cc(r),o=LASTC[r.id];if(!o)return;if(o.set===c.set&&o.air===c.air)return;
  LASTC[r.id]={set:c.set,air:c.air};HOLD[r.id]={air:c.air,set:c.set,until:Date.now()+25000};clearTimeout(CT[r.id]);
@@ -304,7 +305,14 @@ function loadWeather(){if(S.wx!==undefined)return;S.wx=null;
  .then(r=>r.ok?r.json():Promise.reject()).then(j=>j&&j.current&&j.daily?done(j):done('err')).catch(()=>done('err'))}
 const cc=r=>r.c||(r.c={set:21,air:false});
 const MN={cool:'Koelen',heat:'Verwarmen',fan_only:'Ventileren',auto:'Auto',heat_cool:'Auto',dry:'Drogen'};
-const modeChips=r=>{const c=cc(r),ms=(c.modes||[]).filter(m=>m!=='off'&&MN[m]);return ms.length?`<div class="chips" style="margin:8px 0">${ms.map(m=>`<button class="chip" data-act="cmode" data-r="${r.id}" data-v="${m}" aria-pressed="${c.air&&c.mode===m}">${MN[m]}</button>`).join('')}</div>`:''};
+const MF={auto:'Auto',low:'Laag',medium:'Middel',high:'Hoog',quiet:'Stil',mute:'Stil',turbo:'Turbo',strong:'Sterk',middle:'Middel',off:'Uit',on:'Aan'};
+const swOn=c=>!!c.swing&&!/^off$/i.test(c.swing);
+const modeChips=r=>{const c=cc(r),ms=(c.modes||[]).filter(m=>MN[m]),cur=c.air?c.mode:'off';
+ let h='<div class="form" style="margin:8px 0;max-width:none">';
+ if(ms.length)h+=`<label class="state">Stand</label><select data-act="cmsel" data-r="${r.id}" aria-label="Stand van de airco">`+(c.modes.includes('off')?`<option value="off" ${cur==='off'?'selected':''}>Uit</option>`:'')+ms.filter((m,i)=>!(m==='heat_cool'&&ms.includes('auto'))).map(m=>`<option value="${m}" ${cur===m?'selected':''}>${MN[m]}</option>`).join('')+'</select>';
+ if((c.fans||[]).length)h+=`<label class="state" style="margin-top:8px">Ventilatie</label><select data-act="cfan" data-r="${r.id}" aria-label="Ventilatiestand">`+c.fans.map(m=>`<option value="${esc(m)}" ${c.fan===m?'selected':''}>${esc(MF[m.toLowerCase()]||m)}</option>`).join('')+'</select>';
+ if((c.swings||[]).length>1)h+=`<div class="row" style="margin-top:10px"><span class="state">Swing</span><button class="tog" data-act="cswing" data-r="${r.id}" aria-pressed="${swOn(c)}" aria-label="Swing aan of uit"></button></div>`;
+ return h+'</div>'};
 const curT=r=>{const c=cc(r);return c.cur||(c.cur=+(19+((r.id.length*7)%25)/10).toFixed(1))};
 const AT={gft:['GFT','#3f9b5a'],rest:['Restafval','#8b929a'],pmd:['Plastic','#e8920f'],papier:['Papier','#2f7fd6'],tuin:['Tuinafval','#7a9b3f'],kerst:['Kerstbomen','#b04a4a'],overig:['Overig','#9a7ad6']};
 const atl=k=>(AT[k]||AT.overig)[0];
@@ -552,6 +560,7 @@ document.addEventListener('click',e=>{
  if(t.dataset.room){S.room=t.dataset.room;render();return}
  if(t.dataset.view){S.view=t.dataset.view;render();return}
  const a=t.dataset.act;if(!a)return;
+ if(a==='cmsel'||a==='cfan')return;
  if(!['roomdel','grpdel','scndel'].includes(a))S.cd=null;
  if(act2(a,t)){save();render();return}
  if(a==='tog'){const l=r.lights[+t.dataset.i];l.on=!l.on;S.scene=null}
@@ -570,6 +579,7 @@ document.addEventListener('click',e=>{
  if(a==='spk'){const sp=S.spk||HAM.map(x=>x.id),k=sp.indexOf(t.dataset.e);S.say=(document.getElementById('say')||{}).value||S.say;k<0?sp.push(t.dataset.e):sp.splice(k,1);S.spk=sp;render();return}
  if(a==='sayspeak'||a==='saycmd'){const text=((document.getElementById('say')||{}).value||'').trim();S.say=text;S.saymsg='Bezig…';render();
   fetch('/api/ha/say',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:a==='saycmd'?'command':'speak',text,targets:S.spk||HAM.map(x=>x.id)})}).then(async x=>{const j=await x.json().catch(()=>({}));S.saymsg=x.ok?(a==='saycmd'?'Opdracht verstuurd.':'Bericht verstuurd naar '+j.speakers+' speaker(s).'):(j.error||'Mislukt');if(x.ok)S.say='';render()}).catch(()=>{S.saymsg='Geen verbinding met de server.';render()});return}
+ if(a==='cswing'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),on=!swOn(c);c.swing=on?(c.swings.find(m=>!/^off$/i.test(m))||'on'):(c.swings.find(m=>/^off$/i.test(m))||'off');HOLD[q.id]={air:c.air,swing:c.swing,until:Date.now()+25000};climPost(q.id,{swing:on})}}
  if(a==='cmode'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),v=t.dataset.v;c.mode=v;c.air=true;if(LASTC[q.id])LASTC[q.id].air=true;HOLD[q.id]={air:true,mode:v,until:Date.now()+25000};fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:q.id,mode:v})}).then(climFail(q.id)).catch(()=>{toast('Geen verbinding met de server.')})}}
  if(a==='goroom'){S.room=t.dataset.r;S.view='home';render();return}
  if(a==='rall'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const any=q.lights.some(l=>l.on);q.lights.forEach(l=>l.on=!any);S.scene=null}}
@@ -599,6 +609,7 @@ if(t.dataset.act==='vol'){S.media.vol=+t.value;t.closest('.card').querySelector(
 });
 document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
  if(a==='bri'||a==='allbri'){pushAll();return}
+ if(a==='cmsel'||a==='cfan'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),v=t.value;if(a==='cfan'){c.fan=v;HOLD[q.id]={air:c.air,fan:v,until:Date.now()+25000};climPost(q.id,{fan:v})}else{c.air=v!=='off';if(c.air)c.mode=v;if(LASTC[q.id])LASTC[q.id].air=c.air;HOLD[q.id]=c.air?{air:true,mode:v,until:Date.now()+25000}:{air:false,until:Date.now()+25000};climPost(q.id,{mode:v})}render()}return}
  if(a==='lpick'){const l=cur().lights[+t.dataset.i];if(l&&l.e){const [h,sa]=hex2hs(t.value);applyItems([{e:l.e,on:true,b:l.b,h,s:sa}]);render()}return}
  if(a==='gpick'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const [h,sa]=hex2hs(t.value);applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b:x.l.b,h,s:sa})));render()}return}
  if(a==='rbri'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const v=+t.value;q.lights.forEach(l=>{l.b=v;l.on=true});pushAll();render()}return}

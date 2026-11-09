@@ -243,7 +243,7 @@ http.createServer(async (req, res) => {
             if (!room.ce || !allowedKey(room, 'klimaat')) continue;
             const e = st.get(room.ce); if (!e) continue;
             const a = e.attributes || {};
-            out[room.id] = { mode: e.state, modes: a.hvac_modes || [], cur: a.current_temperature ?? null, set: a.temperature ?? null, min: a.min_temp ?? null, max: a.max_temp ?? null, step: a.target_temp_step || a.temp_step || null };
+            out[room.id] = { mode: e.state, modes: a.hvac_modes || [], fan: a.fan_mode ?? null, fans: a.fan_modes || [], swing: a.swing_mode ?? null, swings: a.swing_modes || [], cur: a.current_temperature ?? null, set: a.temperature ?? null, min: a.min_temp ?? null, max: a.max_temp ?? null, step: a.target_temp_step || a.temp_step || null };
           }
           return json(res, 200, { climate: out });
         }
@@ -254,27 +254,51 @@ http.createServer(async (req, res) => {
           if (!allowedKey(room, 'klimaat')) return json(res, 403, { error: 'Geen toegang tot deze airco' });
           const e = (await haCall(cfg, '/api/states/' + room.ce));
           const a = e.attributes || {};
+          const svc = (n, d) => haCall(cfg, '/api/services/climate/' + n, Object.assign({ entity_id: room.ce }, d));
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          const waitFor = async (test, what) => {
+            let st = null;
+            for (let k = 0; k < 6; k++) { await sleep(1500); st = await haCall(cfg, '/api/states/' + room.ce); if (test(st)) return null; }
+            const x = st.attributes || {};
+            console.log('airco', room.ce, 'bleef', st.state, x.temperature, x.fan_mode, x.swing_mode, 'na', what);
+            return 'De airco neemt het niet over (' + what + '). Hij meldt nog: ' + st.state + (x.temperature != null ? ', ' + x.temperature + ' °C' : '') + '. Home Assistant gaf zelf geen foutmelding.';
+          };
+          console.log('airco opdracht', JSON.stringify(b), 'nu', e.state, a.temperature);
+          let bad = null;
           if (typeof b.mode === 'string') {
-            if (b.mode !== 'off' && !(a.hvac_modes || []).includes(b.mode)) return json(res, 400, { error: 'Deze stand kent de airco niet' });
-            await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: b.mode });
-          } else if (b.on === true && e.state === 'off') {
-            const modes = a.hvac_modes || [];
-            const pick = ['cool', 'heat_cool', 'auto', 'heat'].find(m => modes.includes(m)) || modes.find(m => m !== 'off');
-            if (pick) await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: pick });
-          } else if (b.on === false && e.state !== 'off') {
-            try { await haCall(cfg, '/api/services/climate/turn_off', { entity_id: room.ce }); }
-            catch (err) { await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: 'off' }); }
-          }
-          if (b.on !== false && b.temp !== undefined && b.temp !== null && Number.isFinite(+b.temp)) {
-            const lo = a.min_temp ?? 10, hi = a.max_temp ?? 35;
-            const t = Math.min(hi, Math.max(lo, +b.temp));
-            const cur = (b.on === true && e.state === 'off') ? null : e.state;
-            try { await haCall(cfg, '/api/services/climate/set_temperature', { entity_id: room.ce, temperature: t }); }
-            catch (err) {
-              if (!cur || cur === 'off') throw err;
-              await haCall(cfg, '/api/services/climate/set_temperature', { entity_id: room.ce, temperature: t, hvac_mode: cur });
+            if (b.mode === 'off') { try { await svc('turn_off', {}); } catch (err) { await svc('set_hvac_mode', { hvac_mode: 'off' }); } bad = await waitFor(st => st.state === 'off', 'uitzetten'); }
+            else {
+              if (!(a.hvac_modes || []).includes(b.mode)) return json(res, 400, { error: 'Deze stand kent de airco niet' });
+              await svc('set_hvac_mode', { hvac_mode: b.mode }); bad = await waitFor(st => st.state === b.mode, 'stand ' + b.mode);
+            }
+          } else if (typeof b.fan === 'string') {
+            if (!(a.fan_modes || []).includes(b.fan)) return json(res, 400, { error: 'Deze ventilatiestand kent de airco niet' });
+            await svc('set_fan_mode', { fan_mode: b.fan }); bad = await waitFor(st => (st.attributes || {}).fan_mode === b.fan, 'ventilatie ' + b.fan);
+          } else if (typeof b.swing === 'boolean') {
+            const sm = a.swing_modes || [];
+            const offM = sm.find(m => /^off$/i.test(m)) || sm[0];
+            const onM = ['on', 'both', 'vertical', 'horizontal'].map(w => sm.find(m => m.toLowerCase() === w)).find(Boolean) || sm.find(m => m !== offM);
+            const want = b.swing ? onM : offM;
+            if (!want) return json(res, 400, { error: 'Deze airco heeft geen swing' });
+            await svc('set_swing_mode', { swing_mode: want }); bad = await waitFor(st => (st.attributes || {}).swing_mode === want, 'swing ' + want);
+          } else {
+            if (b.on === true && e.state === 'off') {
+              const modes = a.hvac_modes || [];
+              const pick = ['cool', 'heat_cool', 'auto', 'heat'].find(m => modes.includes(m)) || modes.find(m => m !== 'off');
+              if (pick) { await svc('set_hvac_mode', { hvac_mode: pick }); bad = await waitFor(st => st.state !== 'off', 'aanzetten'); }
+            } else if (b.on === false && e.state !== 'off') {
+              try { await svc('turn_off', {}); } catch (err) { await svc('set_hvac_mode', { hvac_mode: 'off' }); }
+              bad = await waitFor(st => st.state === 'off', 'uitzetten');
+            }
+            if (!bad && b.on !== false && b.temp !== undefined && b.temp !== null && Number.isFinite(+b.temp)) {
+              const lo = a.min_temp ?? 10, hi = a.max_temp ?? 35;
+              const t = Math.min(hi, Math.max(lo, +b.temp));
+              try { await svc('set_temperature', { temperature: t }); }
+              catch (err) { if (e.state === 'off') throw err; await svc('set_temperature', { temperature: t, hvac_mode: e.state }); }
+              bad = await waitFor(st => Math.abs(+((st.attributes || {}).temperature) - t) < 0.01, 'temperatuur ' + t);
             }
           }
+          if (bad) return json(res, 502, { error: bad });
           return json(res, 200, { ok: true });
         }
         if (p === '/api/light' && req.method === 'POST') {
