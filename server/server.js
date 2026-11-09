@@ -9,6 +9,8 @@ const { DatabaseSync } = require('node:sqlite');
 const PORT = process.env.PORT || 8080;
 const DATA = process.env.DATA_DIR || '/data';
 const OWNERS = ['Joshua', 'Lorenzo'];
+const ADMIN = 'Admin';
+const isAdmin = s => !!s && s.role === 'owner' && s.ref === ADMIN;
 const SESSION_DAYS_OWNER = 30, SESSION_DAYS_GUEST = 7;
 fs.mkdirSync(DATA, { recursive: true });
 const db = new DatabaseSync(path.join(DATA, 'huis.db'));
@@ -123,8 +125,9 @@ http.createServer(async (req, res) => {
     if (p === '/api/me') {
       if (q.ownerCount.get().n === 0) return json(res, 200, { setup: true, owners: OWNERS });
       const s = session(req);
-      if (!s) return json(res, 401, { owners: OWNERS });
-      if (s.role === 'owner') return json(res, 200, { role: 'owner', name: s.ref });
+      const names = db.prepare('SELECT name FROM owners ORDER BY name = ?, name').all(ADMIN).map(r => r.name);
+      if (!s) return json(res, 401, { owners: names });
+      if (s.role === 'owner') return json(res, 200, { role: 'owner', name: s.ref, admin: isAdmin(s), canCreateAdmin: s.ref === 'Joshua' && !q.owner.get(ADMIN) });
       const g = findGuest(s.ref);
       return json(res, 200, { role: 'guest', id: g.id, name: g.n });
     }
@@ -133,7 +136,9 @@ http.createServer(async (req, res) => {
       if (q.ownerCount.get().n > 0) return json(res, 403, { error: 'Al ingesteld' });
       const b = JSON.parse(await body(req));
       for (const n of OWNERS) if (typeof b[n] !== 'string' || b[n].length < 8) return json(res, 400, { error: 'Elk wachtwoord moet minstens 8 tekens hebben.' });
-      for (const n of OWNERS) { const salt = crypto.randomBytes(16).toString('hex'); q.addOwner.run(n, salt, hashPw(b[n], salt)); }
+      const mk = n => { const salt = crypto.randomBytes(16).toString('hex'); q.addOwner.run(n, salt, hashPw(b[n], salt)); };
+      for (const n of OWNERS) mk(n);
+      if (typeof b[ADMIN] === 'string' && b[ADMIN].length >= 8) mk(ADMIN);
       startSession(req, res, 'owner', OWNERS[0]);
       return json(res, 200, { ok: true });
     }
@@ -146,7 +151,7 @@ http.createServer(async (req, res) => {
         const code = String(b.code).trim();
         const g = d && (d.guests || []).find(x => x.code && same(x.code, code) && !expired(x));
         if (g) { startSession(req, res, 'guest', g.id); return json(res, 200, { ok: true }); }
-      } else if (OWNERS.includes(b.name) && typeof b.password === 'string') {
+      } else if (typeof b.name === 'string' && typeof b.password === 'string') {
         const o = q.owner.get(b.name);
         if (o && same(hashPw(b.password, o.salt), o.hash)) { startSession(req, res, 'owner', o.name); return json(res, 200, { ok: true }); }
       }
@@ -251,7 +256,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/api/cf/token') {
       const s = session(req);
-      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
+      if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
       const f = path.join(DATA, 'cf-token');
       if (req.method === 'GET') return json(res, 200, { set: fs.existsSync(f) });
       if (req.method === 'PUT') {
@@ -263,9 +268,46 @@ http.createServer(async (req, res) => {
       }
       return json(res, 405, { error: 'Niet toegestaan' });
     }
+    if (p.startsWith('/api/admin/')) {
+      const s = session(req);
+      if (p === '/api/admin/create' && req.method === 'POST') {
+        if (!s || s.role !== 'owner' || s.ref !== 'Joshua') return json(res, 403, { error: 'Alleen Joshua kan de beheerder instellen.' });
+        if (q.owner.get(ADMIN)) return json(res, 409, { error: 'Er is al een beheerder.' });
+        const b = JSON.parse(await body(req));
+        if (typeof b.password !== 'string' || b.password.length < 8) return json(res, 400, { error: 'Het wachtwoord moet minstens 8 tekens hebben.' });
+        const salt = crypto.randomBytes(16).toString('hex'); q.addOwner.run(ADMIN, salt, hashPw(b.password, salt));
+        return json(res, 200, { ok: true });
+      }
+      if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      if (p === '/api/admin/info') {
+        let size = 0; try { size = fs.statSync(path.join(DATA, 'huis.db')).size; } catch {}
+        return json(res, 200, { node: process.version, uptimeMin: Math.round(process.uptime() / 60), dbKB: Math.round(size / 1024), accounts: db.prepare('SELECT name FROM owners').all().map(r => r.name) });
+      }
+      if (p === '/api/admin/scan' && req.method === 'POST') {
+        const b = JSON.parse(await body(req));
+        const m = String(b.prefix || '').trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\.\d{0,3})?$/);
+        if (!m || [m[1], m[2], m[3]].some(x => +x > 255)) return json(res, 400, { error: 'Vul de eerste drie getallen van je netwerk in, bijvoorbeeld 192.168.1' });
+        const prefix = m[1] + '.' + m[2] + '.' + m[3], hits = [], jobs = [];
+        for (let i = 1; i <= 254; i++) for (const port of [8123, 80]) jobs.push([prefix + '.' + i, port]);
+        let k = 0;
+        const worker = async () => { while (k < jobs.length) { const [ip, port] = jobs[k++]; try { const r = await fetch('http://' + ip + ':' + port + '/api/', { signal: AbortSignal.timeout(700) }); const t = await r.text(); if (r.status === 401 && /Unauthorized/i.test(t)) hits.push(port === 80 ? 'http://' + ip : 'http://' + ip + ':' + port); } catch {} } };
+        await Promise.all(Array.from({ length: 80 }, worker));
+        return json(res, 200, { gevonden: hits.sort() });
+      }
+      if (p === '/api/admin/reset' && req.method === 'POST') {
+        const b = JSON.parse(await body(req));
+        if (!OWNERS.includes(b.name)) return json(res, 400, { error: 'Onbekend account' });
+        if (typeof b.password !== 'string' || b.password.length < 8) return json(res, 400, { error: 'Het wachtwoord moet minstens 8 tekens hebben.' });
+        const salt = crypto.randomBytes(16).toString('hex'); q.addOwner.run(b.name, salt, hashPw(b.password, salt));
+        db.prepare("DELETE FROM sessions WHERE role = 'owner' AND ref = ?").run(b.name);
+        return json(res, 200, { ok: true });
+      }
+      return json(res, 404, { error: 'Onbekend' });
+    }
     if (p.startsWith('/api/ha/')) {
       const s = session(req);
       if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
+      if ((p === '/api/ha/config' || p === '/api/ha/status') && !isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
       const r = q.get.get('ha'); const cfg = r ? JSON.parse(r.v) : {};
       if (p === '/api/ha/config' && req.method === 'GET') return json(res, 200, { url: cfg.url || '', tokenSet: !!cfg.token });
       if (p === '/api/ha/config' && req.method === 'PUT') {
@@ -318,9 +360,9 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
-    if (p === '/ha') {
+    if (p === '/admin') {
       const s = session(req);
-      if (s && s.role === 'owner') return file(res, 'ha.html', 'text/html; charset=utf-8');
+      if (isAdmin(s) || (s && s.role === 'owner' && s.ref === 'Joshua' && !q.owner.get(ADMIN))) return file(res, 'admin.html', 'text/html; charset=utf-8');
     }
     // Pagina's: zonder sessie alleen de loginpagina
     if (!session(req) || q.ownerCount.get().n === 0) return file(res, 'login.html', 'text/html; charset=utf-8');

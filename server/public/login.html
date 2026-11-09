@@ -40,6 +40,7 @@ input,select{width:100%;padding:12px;border-radius:12px;border:1px solid var(--l
  <form id="setup" class="hide">
   <label id="l0" for="p0"></label><input id="p0" type="password" autocomplete="new-password">
   <label id="l1" for="p1"></label><input id="p1" type="password" autocomplete="new-password">
+  <label for="p2">Wachtwoord voor Admin (beheerder, optioneel)</label><input id="p2" type="password" autocomplete="new-password">
   <button class="go">Opslaan en starten</button>
  </form>
  <div class="err" id="e" role="alert"></div>
@@ -63,7 +64,7 @@ $('#b2').onclick=()=>{$('#f2').classList.remove('hide');$('#f1').classList.add('
 const done=r=>{if(r.ok)location.reload();else $('#e').textContent=r.j.error||'Er ging iets mis.'};
 $('#f1').onsubmit=async e=>{e.preventDefault();done(await post('/api/login',{name:$('#n').value,password:$('#pw').value}))};
 $('#f2').onsubmit=async e=>{e.preventDefault();done(await post('/api/login',{code:$('#c').value}))};
-$('#setup').onsubmit=async e=>{e.preventDefault();const b={};owners.forEach((o,i)=>b[o]=$('#p'+i).value);done(await post('/api/setup',b))};
+$('#setup').onsubmit=async e=>{e.preventDefault();const b={};owners.forEach((o,i)=>b[o]=$('#p'+i).value);if($('#p2').value)b.Admin=$('#p2').value;done(await post('/api/setup',b))};
 </script>
 </body>
 </html>
