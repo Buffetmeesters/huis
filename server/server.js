@@ -439,8 +439,9 @@ http.createServer(async (req, res) => {
               }
             } catch (e) { errors.push(e.message); }
           }
-          out.sort((a, b) => (a.d + (a.t || '00:00')).localeCompare(b.d + (b.t || '00:00')));
-          return json(res, 200, { events: out, errors, connected: gConnected() });
+          const seen = new Set(), uniq = out.filter(e => { const k = e.calId + '|' + e.id; if (seen.has(k)) return false; seen.add(k); return true; });
+          uniq.sort((a, b) => (a.d + (a.t || '00:00')).localeCompare(b.d + (b.t || '00:00')));
+          return json(res, 200, { events: uniq, errors, connected: gConnected() });
         }
         if (p === '/api/agenda/add' && req.method === 'POST') {
           const b = JSON.parse(await body(req));
