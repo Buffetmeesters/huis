@@ -172,6 +172,26 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
  .qgrid .qt:last-child:nth-child(odd){grid-column:auto}
  .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+.back{border:0;background:none;color:var(--mute);font:inherit;font-weight:600;padding:6px 2px;cursor:pointer;margin-bottom:4px}
+.sky{position:relative;overflow:hidden;border-radius:28px;padding:20px;margin-bottom:16px;color:#fff;display:flex;gap:16px;align-items:center;border:1px solid rgba(255,255,255,.18);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.sky::after{content:"";position:absolute;right:-60px;top:-70px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.12);filter:blur(2px)}
+.skyi{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;flex:none;position:relative;z-index:1}
+.skyi svg{width:36px;height:36px}
+.skyb{position:relative;z-index:1;min-width:0}
+.skyp{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;text-shadow:0 1px 6px rgba(0,0,0,.3)}
+.skyg{opacity:.95}.skyg::first-letter{text-transform:uppercase}
+.skys{font-size:.85rem;opacity:.9;margin-top:2px}
+.skyc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.skyc span{background:rgba(0,0,0,.28);border-radius:999px;padding:5px 12px;font-size:.85rem}
+.ftgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.ft,.rt{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;min-height:130px;padding:16px;border-radius:22px;border:1px solid var(--line);background:var(--surf);color:var(--ink);font:inherit;cursor:pointer;transition:transform .15s,background .25s}
+.ft:active,.rt:active{transform:scale(.97)}
+.ft .ico,.rt .ico{width:46px;height:46px;margin-bottom:auto}
+.ft .ico svg,.rt .ico svg{width:24px;height:24px}
+.ft.on,.rt.on{background:var(--amber-soft);border-color:var(--amber)}
+.ft.on .ico,.rt.on .ico{background:var(--amber);color:var(--on-amber)}
+.ftn{font-weight:700;font-size:1.05rem}
 </style>
 </head>
 <body>
@@ -322,6 +342,53 @@ const dagL=d=>d===iso(0)?'Vandaag':d===iso(1)?'Morgen':fmtD(d);
 const afvalChip=e=>`<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${(AT[e.t]||AT.overig)[1]};margin-right:8px"></span>`;
 const AF26={gft:'0102 0115 0122 0129 0212 0219 0226 0312 0319 0326 0409 0416 0423 0507 0513 0521 0604 0611 0618 0702 0709 0716 0730 0806 0813 0827 0903 0910 0924 1001 1008 1022 1029 1105 1119 1126 1203 1217 1224 1231',pmd:'0106 0120 0203 0217 0303 0317 0331 0414 0428 0512 0526 0609 0623 0707 0721 0804 0818 0901 0915 0929 1013 1027 1110 1124 1208 1222',kerst:'0107',rest:'0108 0205 0305 0402 0430 0528 0625 0723 0820 0917 1015 1112 1210',papier:'0124 0228 0328 0425 0523 0702 0725 0822 0926 1024 1128 1228'};
 function seedAfval(){const k='afval2026-05nov';if(D.seed===k)return;Object.keys(AF26).forEach(t=>AF26[t].split(' ').forEach(x=>{const d='2026-'+x.slice(0,2)+'-'+x.slice(2);if(!D.afval.some(e=>e.t===t&&e.d===d))D.afval.push({t,d})}));D.seed=k}
+function huisTiles(){let h='';
+ const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),totL=S.rooms.reduce((a,r)=>a+r.lights.length,0),aanA=S.rooms.filter(r=>r.c&&r.c.air).length,nAir=S.rooms.filter(r=>r.ce).length;
+ const qi=k=>`<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${k}"/></svg></span>`;
+ h+=`<h2>Snelle bediening</h2><div class="qgrid">
+ ${nAir?`<button class="qt ${aanA?'on':''}" data-act="qair" ${aanA?'':'disabled'}>${qi('M3 7h18v6H3zM7 17v3M12 17v3M17 17v3')}<span class="qn">Airco’s</span><span class="qs">${aanA} van ${nAir} aan${aanA?' · tik: alles uit':''}</span></button>`:''}
+ <button class="qt ${S.film?'on':''}" data-act="film">${qi('M4 6h16v12H4zM9 3l3 3 3-3')}<span class="qn">Film kijken</span><span class="qs">${S.film?'Actief · tik om te stoppen':'Sync box en woonkamer'}</span></button>
+ <button class="qt ${S.media.playing?'on':''}" data-act="play">${qi('M9 18V6l10-2v12M9 18a3 3 0 1 1-3-3M19 16a3 3 0 1 1-3-3')}<span class="qn">Muziek</span><span class="qs">${S.media.playing?'Speelt · tik voor pauze':'Gepauzeerd'}</span></button></div>`;
+
+ const gr=(D.groups||[]).filter(g=>allLights().some(x=>g.e.includes(x.e)));
+ if(gr.length)h+=`<h3 style="margin:16px 0 6px">Groepen</h3><div class="grid">`+gr.map(g=>{const ls=allLights().filter(x=>g.e.includes(x.e)),n=ls.filter(x=>x.l.on).length;return `<div class="card lamp ${n?'on':''}" style="--b:70"><div class="glow"></div><div class="row"><div class="name">${esc(g.n)}</div><button class="tog" data-act="gtog" data-g="${g.id}" aria-pressed="${n>0}" aria-label="${esc(g.n)} aan of uit"></button></div><div class="state">${n?n+' van '+ls.length+' aan':'Uit'}</div></div>`}).join('')+`</div>`;
+ if(S.role==='owner'&&HAM.length){const sp=S.spk||HAM.map(x=>x.id);
+  h+=`<h2>Google Assistent</h2><div class="card form"><input id="say" placeholder="Typ een bericht of opdracht" value="${esc(S.say||'')}" aria-label="Bericht of opdracht"><div class="chips">${HAM.map(x=>`<button class="chip" data-act="spk" data-e="${x.id}" aria-pressed="${sp.includes(x.id)}">${esc(x.naam)}</button>`).join('')}</div><div class="mini"><button class="btn" data-act="sayspeak">Laat speakers zeggen</button><button class="btn alt" data-act="saycmd">Stuur naar Assistent</button></div><div class="state">Bij “Stuur naar Assistent” typ je een opdracht zoals een gesproken commando, bijvoorbeeld: omroepen het eten is klaar.</div>${S.saymsg?`<div class="state" role="status">${esc(S.saymsg)}</div>`:''}</div>`}
+ return h}
+
+const RI={woon:'M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3M3 11a2 2 0 0 1 2 2v3h14v-3a2 2 0 0 1 2-2M6 19v1M18 19v1',keuken:'M6 3v8M9 3v8M6 7h3M7.5 11v10M16 3c-2 2-2 6 0 8v10',slaap:'M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5',bad:'M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM6 12V6a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2',werk:'M3 5h18v11H3zM8 20h8M12 16v4',trap:'M4 20h4v-4h4v-4h4V8h4',deur:'M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M4 21h16M14 12h.01',berging:'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10',lamp:'M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z',huis:'M3 11l9-8 9 8M5 10v10h14V10M10 20v-5h4v5'};
+const roomIco=r=>{const n=(r.name||'').toLowerCase();return RI[/woon|living|zit/.test(n)?'woon':/keuken|eet/.test(n)?'keuken':/slaap|logeer|gast/.test(n)?'slaap':/bad|douche|toilet|wc/.test(n)?'bad':/werk|kantoor|studeer|studio/.test(n)?'werk':/hal|overloop|gang|trap|entree/.test(n)?'trap':/voordeur|deur|buiten|tuin|garage|schuur/.test(n)?'deur':/berg|zolder|kelder|bijkeuken/.test(n)?'berging':'lamp']};
+const svgI=d=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+function sunTimes(d){const lat=51.59,lon=5.33,R=Math.PI/180,y=d.getFullYear(),m=d.getMonth(),dd=d.getDate();const N=Math.floor((Date.UTC(y,m,dd)-Date.UTC(y,0,0))/864e5),g=2*Math.PI/365*(N-1);
+ const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+ const de=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+ const c=Math.cos(90.833*R)/(Math.cos(lat*R)*Math.cos(de))-Math.tan(lat*R)*Math.tan(de),ha=Math.acos(Math.max(-1,Math.min(1,c)))/R;
+ return [720-4*(lon+ha)-eq,720-4*(lon-ha)-eq].map(x=>new Date(Date.UTC(y,m,dd)+x*6e4))}
+const hm=d=>d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+const SKY={
+ nacht:['Goedenacht','#0b1230','#2b2f6b','M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5zM17 3v3M15.5 4.5h3'],
+ zonsopkomst:['Zonsopkomst','#f08a4b','#c95d8a','M17 18a5 5 0 0 0-10 0M12 3v4M4.2 10.2l1.4 1.4M18.4 11.6l1.4-1.4M1 18h2M21 18h2M2 21h20M8 6l4-4 4 4'],
+ ochtend:['Goedemorgen','#3b82d6','#62aee8','M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'],
+ middag:['Goedemiddag','#2a6fd1','#3fa3e8','M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'],
+ zonsondergang:['Zonsondergang','#e8641c','#8e3b9e','M17 18a5 5 0 0 0-10 0M12 3v4M4.2 10.2l1.4 1.4M18.4 11.6l1.4-1.4M1 18h2M21 18h2M2 21h20M16 5l-4 4-4-4'],
+ avond:['Goedenavond','#3a2d6e','#1a1f4d','M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z']};
+function phase(now){const[sr,ss]=sunTimes(now),m=60e3;const t=+now;
+ if(t<+sr-60*m)return 'nacht';if(t<+sr+45*m)return 'zonsopkomst';
+ const noon=new Date(now);noon.setHours(12,0,0,0);
+ if(t<+noon)return 'ochtend';if(t<+ss-60*m)return 'middag';if(t<+ss+45*m)return 'zonsondergang';
+ const late=new Date(now);late.setHours(22,30,0,0);return t<+late?'avond':'nacht'}
+function applySky(){try{const k=phase(new Date()),v=SKY[k];document.body.style.backgroundImage=`linear-gradient(180deg,${v[1]}55 0,${v[2]}22 260px,transparent 520px)`;document.body.style.backgroundRepeat='no-repeat'}catch(e){}}
+function skyHTML(extra){const now=new Date(),k=phase(now),v=SKY[k],[sr,ss]=sunTimes(now);
+ const next=+now<+sr?['Zon op over',sr]:+now<+ss?['Zon onder over',ss]:null,df=next?Math.round((next[1]-now)/6e4):0;
+ const nx=next?`${next[0]} ${df>=60?Math.floor(df/60)+' u ':''}${df%60} min`:'De zon is onder';
+ return `<div class="sky" style="background:linear-gradient(135deg,${v[1]},${v[2]})"><div class="skyi">${svgI(v[3])}</div><div class="skyb"><div class="skyp">${v[0]}</div><div class="skyg">${now.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'})} · ${hm(now)}</div><div class="skys">Zon op ${hm(sr)} · zon onder ${hm(ss)} · ${nx}</div>${extra?`<div class="skyc">${extra}</div>`:''}</div></div>`}
+function floorsPage(){const fls=FL.map((n,f)=>({n,f,rs:rl().filter(r=>r.f===f)})).filter(x=>x.rs.length);
+ const extra=S.role==='owner'?'':'';
+ return skyHTML()+`<h2>Verdiepingen</h2><div class="ftgrid">`+fls.map(x=>{const ls=x.rs.flatMap(r=>r.lights),aan=ls.filter(l=>l.on).length,t=x.rs.filter(r=>r.ce&&r.c&&r.c.cur!=null);
+  return `<button class="ft ${aan?'on':''}" data-act="gofl" data-f="${x.f}"><span class="ico">${svgI(x.f===0?RI.huis:RI.trap)}</span><span class="ftn">${esc(x.n)}</span><span class="state">${x.rs.length} ${x.rs.length===1?'ruimte':'ruimtes'}${ls.length?' · '+aan+' '+(aan===1?'lamp':'lampen')+' aan':''}${t.length?' · '+String((t.reduce((a,r)=>a+r.c.cur,0)/t.length).toFixed(1)).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`+(S.role==='owner'?huisTiles():'')}
+function floorPage(f){const rs=rl().filter(r=>r.f===f);
+ return `<button class="back" data-act="goback">‹ Huis</button><h2 style="margin-top:6px">${esc(FL[f]||'')}</h2><div class="ftgrid">`+rs.map(r=>{const n=r.lights.filter(l=>l.on).length,t=r.ce&&r.c&&r.c.cur!=null;
+  return `<button class="rt ${n?'on':''}" data-act="gort" data-r="${r.id}"><span class="ico">${svgI(roomIco(r))}</span><span class="ftn">${esc(r.name)}</span><span class="state">${r.lights.length?(n?n+' van '+r.lights.length+' aan':'Alles uit'):'Geen lampen'}${t?' · '+String(r.c.cur).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`}
 const VIEWS={
 groepen(){
  if(S.role!=='owner')return '<h2>Groepen en scènes</h2><p class="state">Alleen eigenaren kunnen groepen en scènes beheren.</p>';
@@ -363,20 +430,8 @@ afval(){const L=upAfval(12),all=(D.afval||[]).length;
  return h},
 overzicht(){resetDue();loadWeather();
  const today=iso(0),hr=new Date().getHours(),hi=hr<6?'Goedenacht':hr<12?'Goedemorgen':hr<18?'Goedemiddag':'Goedenavond';
- let h=`<div class="state" style="margin:0 0 6px">${hi}! Het is ${fmtD(today)}</div>`;
- const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),totL=S.rooms.reduce((a,r)=>a+r.lights.length,0),aanA=S.rooms.filter(r=>r.c&&r.c.air).length,nAir=S.rooms.filter(r=>r.ce).length;
- const qi=k=>`<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${k}"/></svg></span>`;
- h+=`<h2>Snelle bediening</h2><div class="qgrid">
- ${nAir?`<button class="qt ${aanA?'on':''}" data-act="qair" ${aanA?'':'disabled'}>${qi('M3 7h18v6H3zM7 17v3M12 17v3M17 17v3')}<span class="qn">Airco’s</span><span class="qs">${aanA} van ${nAir} aan${aanA?' · tik: alles uit':''}</span></button>`:''}
- <button class="qt ${S.film?'on':''}" data-act="film">${qi('M4 6h16v12H4zM9 3l3 3 3-3')}<span class="qn">Film kijken</span><span class="qs">${S.film?'Actief · tik om te stoppen':'Sync box en woonkamer'}</span></button>
- <button class="qt ${S.media.playing?'on':''}" data-act="play">${qi('M9 18V6l10-2v12M9 18a3 3 0 1 1-3-3M19 16a3 3 0 1 1-3-3')}<span class="qn">Muziek</span><span class="qs">${S.media.playing?'Speelt · tik voor pauze':'Gepauzeerd'}</span></button></div>`;
- const rt=S.rooms.filter(r=>r.lights.length&&!r.own||S.role==='owner'&&r.lights.length);
- h+=`<h2>Ruimtes</h2><div class="grid">`+rt.map(r=>{const n=r.lights.filter(l=>l.on).length,avg=n?Math.round(r.lights.filter(l=>l.on).reduce((a,l)=>a+(l.b||0),0)/n):0;
-  return `<div class="card lamp ${n?'on':''}" style="--b:${avg||60}"><div class="glow"></div><div class="row"><button class="name" style="all:unset;cursor:pointer;font-weight:600" data-act="goroom" data-r="${r.id}">${esc(r.name)}</button><button class="tog" data-act="rall" data-r="${r.id}" aria-pressed="${n>0}" aria-label="${esc(r.name)} aan of uit"></button></div><div class="state">${n?n+' van '+r.lights.length+' aan · '+avg+'%':'Uit'}</div><input type="range" min="1" max="100" value="${avg||60}" data-act="rbri" data-r="${r.id}" aria-label="Helderheid ${esc(r.name)}"></div>`}).join('')+`</div>`;
- const gr=(D.groups||[]).filter(g=>allLights().some(x=>g.e.includes(x.e)));
- if(gr.length)h+=`<h3 style="margin:16px 0 6px">Groepen</h3><div class="grid">`+gr.map(g=>{const ls=allLights().filter(x=>g.e.includes(x.e)),n=ls.filter(x=>x.l.on).length;return `<div class="card lamp ${n?'on':''}" style="--b:70"><div class="glow"></div><div class="row"><div class="name">${esc(g.n)}</div><button class="tog" data-act="gtog" data-g="${g.id}" aria-pressed="${n>0}" aria-label="${esc(g.n)} aan of uit"></button></div><div class="state">${n?n+' van '+ls.length+' aan':'Uit'}</div></div>`}).join('')+`</div>`;
- if(S.role==='owner'&&HAM.length){const sp=S.spk||HAM.map(x=>x.id);
-  h+=`<h2>Google Assistent</h2><div class="card form"><input id="say" placeholder="Typ een bericht of opdracht" value="${esc(S.say||'')}" aria-label="Bericht of opdracht"><div class="chips">${HAM.map(x=>`<button class="chip" data-act="spk" data-e="${x.id}" aria-pressed="${sp.includes(x.id)}">${esc(x.naam)}</button>`).join('')}</div><div class="mini"><button class="btn" data-act="sayspeak">Laat speakers zeggen</button><button class="btn alt" data-act="saycmd">Stuur naar Assistent</button></div><div class="state">Bij “Stuur naar Assistent” typ je een opdracht zoals een gesproken commando, bijvoorbeeld: omroepen het eten is klaar.</div>${S.saymsg?`<div class="state" role="status">${esc(S.saymsg)}</div>`:''}</div>`}
+ const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),aanA0=S.rooms.filter(r=>r.c&&r.c.air).length,nAir0=S.rooms.filter(r=>r.ce).length,tc=S.rooms.filter(r=>r.ce&&r.c&&r.c.cur!=null);
+ let h=skyHTML(`<span>${aanL} ${aanL===1?'lamp':'lampen'} aan</span>`+(nAir0?`<span>${aanA0} van ${nAir0} airco’s aan</span>`:'')+(tc.length?`<span>${String((tc.reduce((a,r)=>a+r.c.cur,0)/tc.length).toFixed(1)).replace('.',',')}° binnen</span>`:''));
  const w=S.wx;
  h+=`<h2>Weer vandaag</h2><div class="card">`+(w&&w!=='err'?`<div class="row"><div><div class="big">${Math.round(w.current.temperature_2m)}°</div><div class="name">${WX[w.current.weather_code]||'Onbekend'}</div><div class="state">Voelt als ${Math.round(w.current.apparent_temperature)}° · wind ${Math.round(w.current.wind_speed_10m)} km/u</div></div><div class="state" style="text-align:right">Hoog ${Math.round(w.daily.temperature_2m_max[0])}°<br>Laag ${Math.round(w.daily.temperature_2m_min[0])}°<br>Kans op neerslag ${w.daily.precipitation_probability_max[0]??0}%</div></div>`:w==='err'?'<div class="name">Het weer kon niet worden geladen</div><div class="state">Controleer de internetverbinding. In de demo kan het ophalen ook geblokkeerd zijn.</div>':'<div class="state">Weer laden…</div>')+`</div>`;
  const key=today.slice(0,7);
@@ -524,13 +579,15 @@ function render(){
  const nb=owner?['overzicht','home','agenda','taken']:vl.map(x=>x[0]);
  $('#botnav').innerHTML=nb.map(k=>{const n=(VL.find(x=>x[0]===k)||[k,k])[1];return `<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></button>`}).join('')+(owner?`<button data-view="meer" aria-pressed="${!nb.includes(S.view)}" aria-label="Meer" title="Meer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="${IC.meer}"/></svg></button>`:'');
  $('#title').textContent=owner?'Hoi '+D.me+'!':(G()?'Welkom, '+G().n:'Welkom');
- $('#tabs').style.display=S.view==='home'?'flex':'none';
+ $('#tabs').style.display='none';
  $('#tabs').innerHTML=FL.map((fn,f)=>{const q=rl().filter(r=>r.f===f);return q.length?`<div class="fl">${fn}</div>`+q.map(r=>`<button data-room="${r.id}" aria-pressed="${r.id===S.room}">${r.name}</button>`).join(''):''}).join('');
  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.role===S.role));
  const r=cur();
  if(!owner&&S.view!=='notities'&&(!G()||exp(G())||!rl().length)){$('#main').innerHTML=guestBar()+'<div class="card"><div class="name">Geen toegang</div><div class="state">'+(G()&&exp(G())?'De toegang van deze gast is verlopen.':'Voor deze gast staan geen kamers aan.')+'</div></div>';return}
  if(S.view!=='home'){$('#main').innerHTML=VIEWS[S.view]();return}
+ if(S.view==='home'&&!S.rm){$('#main').innerHTML=guestBar()+(S.fl==null?floorsPage():floorPage(S.fl));return}
  const nL=r.lights.length,aL=r.lights.filter(l=>l.on).length;
+ const back=`<button class="back" data-act="goback2">‹ ${FL[r.f]}</button>`;
  const hero=`<div class="hero"><div class="state" style="position:relative;z-index:1">${FL[r.f]}</div><div class="hh" style="position:relative;z-index:1">${esc(r.name)}</div><div class="hs">${can('licht')&&nL?`<span>${aL} van ${nL} ${nL===1?'lamp':'lampen'} aan</span>`:''}${can('klimaat')&&r.cl?`<span>${String(curT(r)).replace('.',',')}° binnen</span>`:''}</div></div>`;
  const film=can('film')&&r.id==='woon'?`<div class="card film ${S.film?'active':''}"><div><div class="name">Film kijken</div><div class="state">${S.film?'Sync box actief, woonkamer gedimd, muziek gepauzeerd':'Start de Hue Sync Box en dim de woonkamer'}</div></div><button class="btn" data-act="film">${S.film?'Stop film':'Start film'}</button></div>`:'';
  let L='',Rr='',X='';
@@ -551,14 +608,14 @@ function render(){
  <div class="card soon"><div class="name">Deursensoren</div><div class="state">Volgen later</div></div>
  <div class="card"><div class="name">Systeem</div><div class="state">Home Assistant, Hue Bridge en back-up: demo</div></div>
  <div class="card"><div class="name">Cloud</div><div class="state">Foto’s en bestanden</div><div class="mini"><button class="btn alt">Openen</button></div></div></div>`}
- $('#main').innerHTML=guestBar()+hero+film+((L||Rr)?`<div class="bento">${L?`<div class="colL">${L}</div>`:''}${Rr?`<div class="colR">${Rr}</div>`:''}</div>`:'')+X;
+ $('#main').innerHTML=guestBar()+back+hero+film+((L||Rr)?`<div class="bento">${L?`<div class="colL">${L}</div>`:''}${Rr?`<div class="colR">${Rr}</div>`:''}</div>`:'')+X;
 }
 document.addEventListener('click',e=>{
  const t=e.target.closest('button');if(!t)return;
  const r=cur();
  if(t.dataset.role){S.role=t.dataset.role;render();return}
  if(t.dataset.room){S.room=t.dataset.room;render();return}
- if(t.dataset.view){S.view=t.dataset.view;render();return}
+ if(t.dataset.view){S.view=t.dataset.view;if(S.view==='home'){S.fl=null;S.rm=0}render();return}
  const a=t.dataset.act;if(!a)return;
  if(a==='cmsel'||a==='cfan')return;
  if(!['roomdel','grpdel','scndel'].includes(a))S.cd=null;
@@ -581,7 +638,11 @@ document.addEventListener('click',e=>{
   fetch('/api/ha/say',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:a==='saycmd'?'command':'speak',text,targets:S.spk||HAM.map(x=>x.id)})}).then(async x=>{const j=await x.json().catch(()=>({}));S.saymsg=x.ok?(a==='saycmd'?'Opdracht verstuurd.':'Bericht verstuurd naar '+j.speakers+' speaker(s).'):(j.error||'Mislukt');if(x.ok)S.say='';render()}).catch(()=>{S.saymsg='Geen verbinding met de server.';render()});return}
  if(a==='cswing'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),on=!swOn(c);c.swing=on?(c.swings.find(m=>!/^off$/i.test(m))||'on'):(c.swings.find(m=>/^off$/i.test(m))||'off');HOLD[q.id]={air:c.air,swing:c.swing,until:Date.now()+25000};climPost(q.id,{swing:on})}}
  if(a==='cmode'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),v=t.dataset.v;c.mode=v;c.air=true;if(LASTC[q.id])LASTC[q.id].air=true;HOLD[q.id]={air:true,mode:v,until:Date.now()+25000};fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:q.id,mode:v})}).then(climFail(q.id)).catch(()=>{toast('Geen verbinding met de server.')})}}
- if(a==='goroom'){S.room=t.dataset.r;S.view='home';render();return}
+ if(a==='goroom'){S.room=t.dataset.r;S.view='home';S.rm=1;render();return}
+ if(a==='gofl'){S.fl=+t.dataset.f;S.rm=0;render();window.scrollTo(0,0);return}
+ if(a==='goback'){S.fl=null;S.rm=0;render();return}
+ if(a==='goback2'){S.rm=0;render();window.scrollTo(0,0);return}
+ if(a==='gort'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){S.room=q.id;S.fl=q.f;S.rm=1;render();window.scrollTo(0,0)}return}
  if(a==='rall'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const any=q.lights.some(l=>l.on);q.lights.forEach(l=>l.on=!any);S.scene=null}}
  if(a==='hload'){loadHue();return}
  if(a==='lcolbtn'){const k=S.room+':'+i0(t);S.col=S.col===k?null:k}
@@ -642,7 +703,7 @@ if(ME){D.me=ME.name==='Admin'?'Joshua':ME.name;{const h=document.getElementById(
 if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'))}}catch(e){}}
 render();
 if(!fromSrv)save();
-pollLights(true);setInterval(pollLights,4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLights(true)});
+applySky();setInterval(()=>{applySky();if(S.view==='overzicht'||S.view==='home'&&!S.rm)render()},60000);pollLights(true);setInterval(pollLights,4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLights(true)});
 })();
 </script>
 </body>
