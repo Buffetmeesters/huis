@@ -262,11 +262,18 @@ http.createServer(async (req, res) => {
             const pick = ['cool', 'heat_cool', 'auto', 'heat'].find(m => modes.includes(m)) || modes.find(m => m !== 'off');
             if (pick) await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: pick });
           } else if (b.on === false && e.state !== 'off') {
-            await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: 'off' });
+            try { await haCall(cfg, '/api/services/climate/turn_off', { entity_id: room.ce }); }
+            catch (err) { await haCall(cfg, '/api/services/climate/set_hvac_mode', { entity_id: room.ce, hvac_mode: 'off' }); }
           }
           if (b.on !== false && b.temp !== undefined && b.temp !== null && Number.isFinite(+b.temp)) {
             const lo = a.min_temp ?? 10, hi = a.max_temp ?? 35;
-            await haCall(cfg, '/api/services/climate/set_temperature', { entity_id: room.ce, temperature: Math.min(hi, Math.max(lo, +b.temp)) });
+            const t = Math.min(hi, Math.max(lo, +b.temp));
+            const cur = (b.on === true && e.state === 'off') ? null : e.state;
+            try { await haCall(cfg, '/api/services/climate/set_temperature', { entity_id: room.ce, temperature: t }); }
+            catch (err) {
+              if (!cur || cur === 'off') throw err;
+              await haCall(cfg, '/api/services/climate/set_temperature', { entity_id: room.ce, temperature: t, hvac_mode: cur });
+            }
           }
           return json(res, 200, { ok: true });
         }
