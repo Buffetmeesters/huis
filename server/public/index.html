@@ -562,7 +562,7 @@ document.addEventListener('click',e=>{
  const a=t.dataset.act;if(!a)return;
  if(a==='cmsel'||a==='cfan')return;
  if(!['roomdel','grpdel','scndel'].includes(a))S.cd=null;
- if(act2(a,t)){save();render();return}
+ if(act2(a,t)){save();pushClim();render();return}
  if(a==='tog'){const l=r.lights[+t.dataset.i];l.on=!l.on;S.scene=null}
  if(a==='qlights'){S.rooms.forEach(q=>q.lights.forEach(l=>l.on=false));S.scene=null}
  if(a==='qair'){S.rooms.forEach(q=>{if(q.c)q.c.air=false})}
