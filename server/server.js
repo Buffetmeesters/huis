@@ -243,6 +243,23 @@ http.createServer(async (req, res) => {
       try { await haCall(cfg, '/api/services/scene/turn_on', { entity_id: sc.hue }); return json(res, 200, { ok: true }); }
       catch (e) { return json(res, 502, { error: haErr(e) }); }
     }
+    if (p === '/api/sensors') {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      const cfg = haCfg(); if (!cfg) return json(res, 400, { error: 'Home Assistant is nog niet ingesteld.' });
+      try {
+        const all = await haCall(cfg, '/api/states');
+        const st = new Map(all.map(e => [e.entity_id, e]));
+        const num = id => { const e = id && st.get(id); const v = e ? parseFloat(e.state) : NaN; return Number.isFinite(v) ? v : null; };
+        const out = {};
+        for (const r of loadRooms()) {
+          if (!r.sm && !r.stt && !r.sli && !r.sbt) continue;
+          const m = r.sm && st.get(r.sm);
+          out[r.id] = { m: m ? (m.state === 'on' ? true : m.state === 'off' ? false : null) : null, mt: m ? m.last_changed : null, t: num(r.stt), lx: num(r.sli), bat: num(r.sbt) };
+        }
+        return json(res, 200, { sensors: out });
+      } catch (e) { return json(res, 502, { error: haErr(e) }); }
+    }
     if (p === '/api/lights' || p === '/api/light' || p === '/api/apply' || p === '/api/climate') {
       const s = session(req);
       if (!s) return json(res, 401, { error: 'Niet ingelogd' });
@@ -579,7 +596,7 @@ http.createServer(async (req, res) => {
           const all = await ha('/api/states');
           const keep = new Set(['light', 'climate', 'media_player', 'switch', 'binary_sensor', 'sensor', 'camera', 'lock']);
           const out = all.filter(e => keep.has(e.entity_id.split('.')[0]) && !(e.entity_id.startsWith('sensor.') && !e.attributes.device_class))
-            .map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state }));
+            .map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state, klasse: e.attributes.device_class || '' }));
           return json(res, 200, { aantal: out.length, entiteiten: out });
         }
       } catch (e) { return json(res, 502, { error: haErr(e) }); }

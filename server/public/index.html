@@ -281,7 +281,7 @@ const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
 const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let GUEST=false,HAL=[],HAM=[],HAC=[];
+let GUEST=false,HAL=[],HAM=[],HAC=[],HAS=[];
 const LAST={};const i0=t=>+t.dataset.i;
 const WH=[[2200,'#ffb46b','Kaars'],[2700,'#ffc98e','Warm wit'],[4000,'#fff1e0','Neutraal'],[6000,'#dfe9ff','Koel wit']];
 const CO=[[0,100,'Rood'],[28,100,'Oranje'],[50,100,'Geel'],[120,100,'Groen'],[175,100,'Turquoise'],[230,100,'Blauw'],[270,100,'Paars'],[320,80,'Roze']];
@@ -316,6 +316,7 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
      else{delete HOLD[rm.id];toast('De airco in '+rm.name+' heeft de opdracht niet uitgevoerd.')}}
     if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
     c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];c.fan=v.fan;c.fans=v.fans||[];c.swing=v.swing;c.swings=v.swings||[];LASTC[rm.id]={set,air}})}}catch(e){}
+  if(S.role==='owner'&&S.rooms.some(r=>r.sm||r.stt||r.sli||r.sbt)){try{const rs=await fetch('/api/sensors');if(rs.status===200){const sj=(await rs.json()).sensors||{};if(JSON.stringify(sj)!==JSON.stringify(S.sens))ch=true;S.sens=sj}}catch(e){}}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
 const LASTC={},CT={},HOLD={};
 function toast(t){let d=document.getElementById('toast');if(!d){d=document.createElement('div');d.id='toast';d.setAttribute('role','status');d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:110px;max-width:90vw;background:#2b2b3a;color:#fff;padding:12px 16px;border-radius:14px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:.9rem';document.body.appendChild(d)}d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(()=>{d.style.display='none'},7000)}
@@ -432,6 +433,15 @@ function tijdwissel(now){const y=now.getFullYear(),t0=new Date(y,now.getMonth(),
 function tijdCard(){const w=tijdwissel(new Date());if(!w)return '';try{if(localStorage.getItem(w.key))return ''}catch(e){}
  return `<div class="card row item" style="margin:0 0 16px;border-color:var(--amber);flex-wrap:wrap"><div style="display:flex;gap:12px;align-items:flex-start;flex:1 1 240px"><span class="ico" style="flex:none">${svgI('M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z')}</span><div><div class="name">${w.t}</div><div class="state">${esc(w.sub)}</div></div></div><button class="btn alt" data-act="tmok" data-k="${w.key}">Begrepen</button></div>`}
 
+const smOpts=()=>HAS.filter(x=>x.id.startsWith('binary_sensor.')&&/motion|occupancy|presence/.test(x.klasse||''));
+const smPrefix=n=>String(n||'').trim().split(/\s+/).slice(0,-1).join(' ').toLowerCase();
+function smLink(q,ent){const x=HAS.find(e=>e.id===ent);q.sm=ent;const pre=smPrefix(x&&x.naam);
+ const f=k=>{const c=pre?HAS.filter(e=>e.id.startsWith('sensor.')&&e.klasse===k&&smPrefix(e.naam)===pre):[];return c[0]&&c[0].id};
+ const t=f('temperature'),l=f('illuminance'),b=f('battery');
+ if(t)q.stt=t;else delete q.stt;if(l)q.sli=l;else delete q.sli;if(b)q.sbt=b;else delete q.sbt}
+const smAgo=iso=>{if(!iso)return '';const m=Math.round((Date.now()-new Date(iso))/6e4);return m<1?'zojuist':m<60?m+' min geleden':m<1440?Math.round(m/60)+' u geleden':Math.round(m/1440)+' d geleden'};
+const smTxt=r=>{const v=S.sens&&S.sens[r.id];if(!v)return '';const p=[];if(v.m===true)p.push('beweging nu');else if(v.m===false&&v.mt)p.push('beweging '+smAgo(v.mt));if(v.t!=null)p.push(String(v.t.toFixed(1)).replace('.',',')+'°');return p.join(' · ')};
+
 function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da,12)}
 const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 function festNow(now){const y=now.getFullYear(),t0=new Date(y,now.getMonth(),now.getDate(),12),E=easter(y);
@@ -448,7 +458,7 @@ function floorsPage(){const fls=FL.map((n,f)=>({n,f,rs:rl().filter(r=>r.f===f)})
   return `<button class="ft ${aan?'on':''}" data-act="gofl" data-f="${x.f}"><span class="ico">${svgI(x.f===0?RI.huis:RI.trap)}</span><span class="ftn">${esc(x.n)}</span><span class="state">${x.rs.length} ${x.rs.length===1?'ruimte':'ruimtes'}${ls.length?' · '+aan+' '+(aan===1?'lamp':'lampen')+' aan':''}${t.length?' · '+String((t.reduce((a,r)=>a+r.c.cur,0)/t.length).toFixed(1)).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`+(S.role==='owner'?huisTiles():'')}
 function floorPage(f){const rs=rl().filter(r=>r.f===f),kb=KIOSK!=null,lit=rs.some(r=>r.lights.some(l=>l.on));
  return (kb?skyHTML():`<button class="back" data-act="goback">‹ Huis</button><h2 style="margin-top:6px">${esc(FL[f]||'')}</h2>`)+(S.role==='owner'&&lit||kb&&lit?`<div class="alloff"><button class="btn alt" data-act="flalloff" data-f="${f}">Alle lampen op deze verdieping uit</button></div>`:'')+`<div class="ftgrid">`+rs.map(r=>{const n=r.lights.filter(l=>l.on).length,t=r.ce&&r.c&&r.c.cur!=null;
-  return `<button class="rt ${n?'on':''}" data-act="gort" data-r="${r.id}"><span class="ico">${svgI(roomIco(r))}</span><span class="ftn">${esc(r.name)}</span><span class="state">${r.lights.length?(n?n+' van '+r.lights.length+' aan':'Alles uit'):'Geen lampen'}${t?' · '+String(r.c.cur).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`}
+  return `<button class="rt ${n?'on':''}" data-act="gort" data-r="${r.id}"><span class="ico">${svgI(roomIco(r))}</span><span class="ftn">${esc(r.name)}</span><span class="state">${r.lights.length?(n?n+' van '+r.lights.length+' aan':'Alles uit'):'Geen lampen'}${t?' · '+String(r.c.cur).replace('.',',')+'°':''}</span>${S.role==='owner'&&smTxt(r)?`<span class="state">${esc(smTxt(r))}</span>`:''}</button>`}).join('')+`</div>`}
 const VIEWS={
 groepen(){
  if(S.role!=='owner')return '<h2>Groepen en scènes</h2><p class="state">Alleen eigenaren kunnen groepen en scènes beheren.</p>';
@@ -475,7 +485,7 @@ ruimtes(){
   S.rooms.filter(r=>r.f===f).forEach(r=>{
    const prot=r.id==='woon'||r.id==='voordeur';
    h+=`<details class="card item" ${S.orr===r.id?'open':''}><summary class="name">${esc(r.name)} <span class="state">${r.lights.length} ${r.lights.length===1?'lamp':'lampen'}</span></summary>
-${HAC.length?`<div class="form" style="margin-top:10px;max-width:none"><div class="state">Airco in Home Assistant</div><select data-act="cent" data-r="${r.id}" aria-label="Airco koppelen"><option value="">Niet gekoppeld</option>${HAC.map(x=>`<option value="${x.id}" ${x.id===r.ce?'selected':''}>${esc(x.naam)}</option>`).join('')}</select></div>`:''}<div class="form" style="margin-top:10px;max-width:none"><div class="state">Naam</div><input data-act="rname" data-r="${r.id}" value="${esc(r.name)}" aria-label="Naam van de ruimte">
+${smOpts().length?`<div class="form" style="margin-top:10px;max-width:none"><div class="state">Bewegingssensor in Home Assistant</div><select data-act="sment" data-r="${r.id}" aria-label="Sensor koppelen"><option value="">Niet gekoppeld</option>${smOpts().map(x=>`<option value="${x.id}" ${x.id===r.sm?'selected':''}>${esc(x.naam)}</option>`).join('')}</select></div>`:''}${HAC.length?`<div class="form" style="margin-top:10px;max-width:none"><div class="state">Airco in Home Assistant</div><select data-act="cent" data-r="${r.id}" aria-label="Airco koppelen"><option value="">Niet gekoppeld</option>${HAC.map(x=>`<option value="${x.id}" ${x.id===r.ce?'selected':''}>${esc(x.naam)}</option>`).join('')}</select></div>`:''}<div class="form" style="margin-top:10px;max-width:none"><div class="state">Naam</div><input data-act="rname" data-r="${r.id}" value="${esc(r.name)}" aria-label="Naam van de ruimte">
 <div class="state">Verdieping</div><select data-act="rfl" data-r="${r.id}" aria-label="Verdieping">${FL.map((n,k)=>`<option value="${k}" ${k===r.f?'selected':''}>${n}</option>`).join('')}</select></div>
 <div class="state" style="margin-top:10px">Apparaten en toegang</div><div class="chips">${Object.keys(FX).map(k=>`<button class="chip" data-act="rtog" data-r="${r.id}" data-k="${k}" aria-pressed="${!!r[k]}">${FX[k]}</button>`).join('')}</div>
 <div class="state" style="margin-top:10px">Lampen</div>
@@ -498,6 +508,10 @@ overzicht(){resetDue();loadWeather();
  if(!D.paid[key])h+=`<div class="card" style="margin-top:12px;border-color:var(--amber)"><div class="row"><div><div class="name">Dennis heeft deze maand nog niet betaald</div><div class="state">Vink af in de agenda zodra het binnen is</div></div><button class="btn alt" data-view="agenda">Agenda</button></div></div>`;
  const rc=S.rooms.filter(r=>r.ce),avg=rc.length?rc.reduce((a,r)=>a+curT(r),0)/rc.length:0;
  const un=S.role==='owner'?HAC.filter(x=>!S.rooms.some(r=>r.ce===x.id)):[];
+ const sun=S.role==='owner'?smOpts().filter(x=>!S.rooms.some(r=>r.sm===x.id)):[];
+ if(sun.length)h+=`<h2>Sensor koppelen</h2>`+sun.map((x,k)=>`<div class="card form"><div class="name">${esc(x.naam)}</div><div class="state">Staat in Home Assistant, nog niet aan een ruimte gekoppeld. Temperatuur, licht en batterij van dezelfde sensor worden automatisch meegenomen.</div><select id="smr${k}" aria-label="Ruimte voor ${esc(x.naam)}">${S.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select><button class="btn" data-act="smap" data-e="${x.id}" data-i="${k}">Koppelen</button></div>`).join('');
+ const lowb=S.role==='owner'&&S.sens?S.rooms.filter(r=>S.sens[r.id]&&S.sens[r.id].bat!=null&&S.sens[r.id].bat<=20):[];
+ if(lowb.length)h+=`<div class="card" style="margin-top:12px;border-color:var(--amber)"><div class="name">Batterij van een sensor is bijna leeg</div><div class="state">${lowb.map(r=>esc(r.name)+' ('+Math.round(S.sens[r.id].bat)+'%)').join(', ')}</div></div>`;
  if(un.length)h+=`<h2>Airco koppelen</h2>`+un.map((x,k)=>`<div class="card form"><div class="name">${esc(x.naam)}</div><div class="state">Staat in Home Assistant, nog niet aan een ruimte gekoppeld.</div><select id="cmr${k}" aria-label="Ruimte voor ${esc(x.naam)}">${S.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select><button class="btn" data-act="cmap" data-e="${x.id}" data-i="${k}">Koppelen aan ruimte</button></div>`).join('');
  if(rc.length)h+=`<h2>Airco</h2><div class="grid" style="margin-top:8px">`+rc.map(r=>{const c=cc(r);return `<div class="card"><div class="name">${esc(r.name)}</div><div class="state">Nu ${String(curT(r)).replace('.',',')}° · ingesteld ${String(c.set).replace('.',',')}°</div>${modeChips(r)}<div class="mini"><button class="btn alt" data-act="ctm" data-r="${r.id}" aria-label="Lager ${esc(r.name)}">−</button><button class="btn alt" data-act="ctp" data-r="${r.id}" aria-label="Hoger ${esc(r.name)}">+</button><button class="btn ${c.air?'':'alt'}" data-act="cair" data-r="${r.id}">Airco ${c.air?'aan':'uit'}</button></div></div>`}).join('')+`</div>`;
  const hL=h;h='';
@@ -568,6 +582,7 @@ ${r.img?`<img src="${r.img}" alt="Foto van ${esc(r.n)}" style="width:100%;max-he
  return h+`<h2>Recept toevoegen</h2><div class="card form"><input id="rn" placeholder="Naam van het gerecht"><input id="rm" type="number" min="1" placeholder="Minuten"><textarea id="ri" rows="4" placeholder="Ingrediënten, één per regel"></textarea><textarea id="rs" rows="4" placeholder="Bereiding"></textarea><label class="btn alt" style="display:inline-block;cursor:pointer;text-align:center">Foto toevoegen (optioneel)<input class="sr" type="file" accept="image/*" data-act="rnewphoto"></label><img id="rprev" alt="Voorbeeld van de foto" ${S.rimg?`src="${S.rimg}"`:''} style="display:${S.rimg?'block':'none'};width:100%;max-height:220px;object-fit:cover;border-radius:12px"><button class="btn" data-act="radd">Recept opslaan</button></div>`}};
 async function loadHue(){try{const r=await fetch('/api/ha/scenes');const j=await r.json();S.hsc=r.ok?(j.scenes||[]).filter(x=>!(D.scn||[]).some(c=>c.hue===x.id)):[];S.hmsg=r.ok?(S.hsc.length?'':'Geen nieuwe scènes gevonden.'):(j.error||'Mislukt')}catch(e){S.hmsg='Mislukt'}render()}
 function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{value:''}).value.trim();
+ if(a==='smap'){const sel=document.getElementById('smr'+i),q=S.rooms.find(x=>x.id===(sel&&sel.value));if(!q)return true;smLink(q,t.dataset.e);S.redit=1;setTimeout(()=>pollLights(true),700);return true}
  if(a==='cmap'){const sel=document.getElementById('cmr'+i),q=S.rooms.find(x=>x.id===(sel&&sel.value));if(!q)return true;q.ce=t.dataset.e;q.cl=1;S.redit=1;setTimeout(()=>pollLights(true),700);return true}
  if(a==='hadd'){const h=(S.hsc||[])[i];if(!h)return true;const sel=document.getElementById('hr'+i);(D.scn=D.scn||[]).push({id:'h'+Date.now(),n:h.naam,hue:h.id,room:sel?sel.value:S.rooms[0].id});S.hsc.splice(i,1);return true}
  if(a==='grpsel'){const e=t.dataset.e;S.grpn=v('grpn');const L=S.gsel||(S.gsel=[]);const k=L.indexOf(e);k<0?L.push(e):L.splice(k,1);return true}
@@ -665,6 +680,7 @@ function render(){
  <div class="mini"><button class="btn" data-act="play">${S.media.playing?'Pauze':'Afspelen'}</button><span class="state">Volume ${S.media.vol}%</span></div>
  <input type="range" min="0" max="100" value="${S.media.vol}" data-act="vol" aria-label="Volume"></div>`;
  if(can('klimaat')&&r.ce)Rr+=`<h2>Klimaat</h2><div class="card dialcard"><div class="row"><div class="name">Temperatuur</div><div class="row" style="gap:10px"><span class="state">Airco ${S.clim.air?'aan':'uit'}</span><button class="tog" data-act="air" aria-pressed="${S.clim.air}" aria-label="Airco aan of uit"></button></div></div>${dialHTML(r)}${modeChips(r)}</div>`;
+ if(owner&&S.sens&&S.sens[r.id]){const v=S.sens[r.id];Rr+=`<h2>Sensor</h2><div class="card"><div class="row"><div class="name">Beweging</div><div class="state">${v.m===true?'Nu beweging':v.m===false?(v.mt?'Laatst '+smAgo(v.mt):'Geen beweging'):'Onbekend'}</div></div>${v.t!=null?`<div class="row" style="margin-top:8px"><div class="name">Temperatuur</div><div class="state">${String(v.t.toFixed(1)).replace('.',',')}°</div></div>`:''}${v.lx!=null?`<div class="row" style="margin-top:8px"><div class="name">Lichtniveau</div><div class="state">${Math.round(v.lx)} lux</div></div>`:''}${v.bat!=null?`<div class="row" style="margin-top:8px"><div class="name">Batterij</div><div class="state" ${v.bat<=20?'style="color:#ff8a8a"':''}>${Math.round(v.bat)}%</div></div>`:''}</div>`}
  if(r.id==='voordeur')X+=`<h2>Voordeur</h2><div class="grid"><div class="card soon"><div class="name">Videodeurbel</div><div class="state">Live beeld, beltoon en opnames volgen met de koppeling. Alleen zichtbaar voor Joshua en Lorenzo.</div></div></div>`;
  if(owner){X+=`<h2>Alleen voor jullie</h2><div class="grid">
  <div class="card soon"><div class="name">Videodeurbel</div><div class="state">Koppelen in fase 2</div></div>
@@ -748,9 +764,10 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;
  if(a==='gbri'){const g=(D.groups||[]).find(x=>x.id===t.dataset.g);if(g){const b=+t.value;applyItems(allLights().filter(x=>g.e.includes(x.e)).map(x=>({e:x.e,on:true,b})));render()}return}
  if(a==='trep'){S.tn=(document.getElementById('tn')||{}).value||'';S.tpv=(document.getElementById('tp')||{}).value||'1';S.trep=t.value;render();return}
  if(a==='rphoto'||a==='rnewphoto'){const f=t.files&&t.files[0];if(!f)return;readImg(f,d=>{if(a==='rphoto'){D.recipes[+t.dataset.i].img=d;S.or=+t.dataset.i;save();render()}else{S.rimg=d;const p=document.getElementById('rprev');if(p){p.src=d;p.style.display='block'}}});return}if(a==='guntil'){const g=D.guests[+t.dataset.i];g.until=t.value;S.og=g.id;save();render();return}
- if(a==='rname'||a==='rfl'||a==='lname'||a==='lent'||a==='cent'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(!q)return;
+ if(a==='rname'||a==='rfl'||a==='lname'||a==='lent'||a==='cent'||a==='sment'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(!q)return;
   if(a==='rname'){const n=t.value.trim();if(n)q.name=n}
   else if(a==='rfl')q.f=+t.value;
+  else if(a==='sment'){if(t.value)smLink(q,t.value);else{delete q.sm;delete q.stt;delete q.sli;delete q.sbt}S.redit=1;setTimeout(()=>pollLights(true),600)}
   else if(a==='cent'){if(t.value){q.ce=t.value;q.cl=1}else delete q.ce}
   else if(a==='lent'){const l=q.lights[+t.dataset.j];if(l){if(t.value)l.e=t.value;else delete l.e}}
   else{const n=t.value.trim(),l=q.lights[+t.dataset.j];if(n&&l)l.n=n}
@@ -771,7 +788,7 @@ D.tasks.forEach((t,k)=>{if(!t.id)t.id='t'+k+'x'+Date.now();if(t.rep===undefined)
 if(!D.afval)D.afval=[];seedAfval();if(!D.addr)D.addr='Frans Staelstraat 29, 5281 CW Boxtel';
 S.rooms.forEach(r=>{r.name=r.name.replace(/\s*\d+\s*m²\s*$/,'')});if(!D.notes)D.notes=[];if(!D.groups)D.groups=[];if(!D.scn)D.scn=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
 if(ME){D.me=ME.name==='Admin'?'Joshua':ME.name;{const h=document.getElementById('hal');if(h&&!GUEST){if(ME.admin){h.style.display=''}else if(ME.canCreateAdmin){h.textContent='Admin instellen';h.style.display=''}}}if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
-if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'))}}catch(e){}}
+if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'));HAS=ents.filter(x=>x.id.startsWith('binary_sensor.')||x.id.startsWith('sensor.'))}}catch(e){}}
 render();
 if(!fromSrv)save();
 setInterval(()=>{const c=document.getElementById('skyclock');if(c)c.textContent=hm(new Date())},5000);applySky();setInterval(()=>{applySky();if(S.view==='overzicht'||S.view==='home'&&!S.rm)render()},60000);(()=>{try{const gp=new URLSearchParams(location.search).get('google');if(gp){const m={ok:'Google Agenda is gekoppeld.',geweigerd:'Koppelen is geannuleerd.',verlopen:'De koppeling duurde te lang. Probeer het opnieuw.',geenrefresh:'Google gaf geen blijvende toestemming. Probeer het nog eens.',fout:'Koppelen is mislukt.'};S.view='agenda';history.replaceState(null,'','/');setTimeout(()=>{render();toast(m[gp]||'Klaar');loadGoogle(true)},600)}}catch(e){}})();
