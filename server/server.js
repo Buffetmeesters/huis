@@ -435,7 +435,7 @@ http.createServer(async (req, res) => {
                   if (allDay) d = st; else { const dd = new Date(st); const f = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(dd); d = f.slice(0, 10); t = f.slice(11, 16); }
                   let t2 = '';
                   if (!allDay && e.end && e.end.dateTime) t2 = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit' }).format(new Date(e.end.dateTime));
-                  out.push({ id: e.id, who, calId: c.id, cal: c.summaryOverride || c.summary || '', color: c.backgroundColor || '', d, t, t2, allDay, n: e.summary || '(zonder titel)', loc: e.location || '', canEdit: ['owner', 'writer'].includes(c.accessRole) });
+                  out.push({ id: e.id, who, calId: c.id, cal: c.summaryOverride || c.summary || '', color: c.backgroundColor || '', d, t, t2, allDay, wie: (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.wie) || '', n: e.summary || '(zonder titel)', loc: e.location || '', canEdit: ['owner', 'writer'].includes(c.accessRole) });
                 }
               }
             } catch (e) { errors.push(e.message); }
@@ -461,7 +461,14 @@ http.createServer(async (req, res) => {
             ev = { summary: title, start: { dateTime: b.date + 'T' + b.time + ':00', timeZone: 'Europe/Amsterdam' }, end: { dateTime: b.date + 'T' + end + ':00', timeZone: 'Europe/Amsterdam' } };
           }
           if (b.loc) ev.location = String(b.loc).slice(0, 200);
+          if (b.wie) ev.extendedProperties = { private: { wie: String(b.wie).slice(0, 40) } };
           await gApi(who, 'POST', '/calendars/primary/events', ev);
+          return json(res, 200, { ok: true });
+        }
+        if (p === '/api/agenda/wie' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          if (!OWNERS.includes(b.who) || !gConnected().includes(b.who)) return json(res, 400, { error: 'Onbekend account' });
+          await gApi(b.who, 'PATCH', '/calendars/' + encodeURIComponent(String(b.calId)) + '/events/' + encodeURIComponent(String(b.id)), { extendedProperties: { private: { wie: String(b.wie || '').slice(0, 40) } } });
           return json(res, 200, { ok: true });
         }
         if (p === '/api/agenda/del' && req.method === 'POST') {
