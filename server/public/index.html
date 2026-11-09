@@ -229,7 +229,7 @@ const myNotes=()=>{const g=G();return g&&!exp(g)?D.notes.filter(n=>n.to.includes
 const exp=g=>g.until&&g.until<iso(0);
 const G=()=>S.role==='guest'?D.guests.find(g=>g.id===S.pg)||null:null;
 const PN={licht:'Licht',sfeer:'Sfeer',muziek:'Muziek',klimaat:'Klimaat',film:'Film'};
-const KS=id=>{const r=S.rooms.find(x=>x.id===id);return Object.keys(PN).filter(k=>!r.own&&(k!=='muziek'||r.sp)&&(k!=='klimaat'||r.cl)&&(k!=='film'||id==='woon'))};
+const KS=id=>{const r=S.rooms.find(x=>x.id===id);return Object.keys(PN).filter(k=>!r.own&&(k!=='muziek'||r.sp)&&(k!=='klimaat'||r.ce)&&(k!=='film'||id==='woon'))};
 const RP=(id=S.room)=>{const g=G();return g&&!exp(g)&&!(S.rooms.find(r=>r.id===id)||{}).own?(g.rp||{})[id]||null:null};
 const can=(k,id)=>S.role==='owner'||!!(RP(id)&&RP(id)[k]);
 Object.defineProperty(S,'clim',{get(){const r=cur();return r.c||(r.c={set:21,air:false})}});
@@ -266,7 +266,7 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
   try{const rc=await fetch('/api/climate');if(rc.status===200){const cj=(await rc.json()).climate||{};S.rooms.forEach(rm=>{const v=cj[rm.id];if(!v)return;const c=cc(rm);
     const air=v.mode!=='off',set=v.set!=null?v.set:c.set;
     if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
-    c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;LASTC[rm.id]={set,air}})}}catch(e){}
+    c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];LASTC[rm.id]={set,air}})}}catch(e){}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
 const LASTC={},CT={};
 function pushClim(){S.rooms.forEach(r=>{if(!r.ce)return;const c=cc(r),o=LASTC[r.id];if(!o)return;if(o.set===c.set&&o.air===c.air)return;
@@ -296,6 +296,8 @@ function loadWeather(){if(S.wx!==undefined)return;S.wx=null;
  fetch('https://api.open-meteo.com/v1/forecast?latitude=51.73&longitude=5.53&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FAmsterdam&forecast_days=1')
  .then(r=>r.ok?r.json():Promise.reject()).then(j=>j&&j.current&&j.daily?done(j):done('err')).catch(()=>done('err'))}
 const cc=r=>r.c||(r.c={set:21,air:false});
+const MN={cool:'Koelen',heat:'Verwarmen',fan_only:'Ventileren',auto:'Auto',heat_cool:'Auto',dry:'Drogen'};
+const modeChips=r=>{const c=cc(r),ms=(c.modes||[]).filter(m=>m!=='off'&&MN[m]);return ms.length?`<div class="chips" style="margin:8px 0">${ms.map(m=>`<button class="chip" data-act="cmode" data-r="${r.id}" data-v="${m}" aria-pressed="${c.air&&c.mode===m}">${MN[m]}</button>`).join('')}</div>`:''};
 const curT=r=>{const c=cc(r);return c.cur||(c.cur=+(19+((r.id.length*7)%25)/10).toFixed(1))};
 const AT={gft:['GFT','#3f9b5a'],rest:['Restafval','#8b929a'],pmd:['Plastic','#e8920f'],papier:['Papier','#2f7fd6'],tuin:['Tuinafval','#7a9b3f'],kerst:['Kerstbomen','#b04a4a'],overig:['Overig','#9a7ad6']};
 const atl=k=>(AT[k]||AT.overig)[0];
@@ -347,10 +349,10 @@ afval(){const L=upAfval(12),all=(D.afval||[]).length;
 overzicht(){resetDue();loadWeather();
  const today=iso(0),hr=new Date().getHours(),hi=hr<6?'Goedenacht':hr<12?'Goedemorgen':hr<18?'Goedemiddag':'Goedenavond';
  let h=`<div class="state" style="margin:0 0 6px">${hi}! Het is ${fmtD(today)}</div>`;
- const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),totL=S.rooms.reduce((a,r)=>a+r.lights.length,0),aanA=S.rooms.filter(r=>r.c&&r.c.air).length,nAir=S.rooms.filter(r=>r.cl).length;
+ const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),totL=S.rooms.reduce((a,r)=>a+r.lights.length,0),aanA=S.rooms.filter(r=>r.c&&r.c.air).length,nAir=S.rooms.filter(r=>r.ce).length;
  const qi=k=>`<span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${k}"/></svg></span>`;
  h+=`<h2>Snelle bediening</h2><div class="qgrid">
- <button class="qt ${aanA?'on':''}" data-act="qair" ${aanA?'':'disabled'}>${qi('M3 7h18v6H3zM7 17v3M12 17v3M17 17v3')}<span class="qn">Airco’s</span><span class="qs">${aanA} van ${nAir} aan${aanA?' · tik: alles uit':''}</span></button>
+ ${nAir?`<button class="qt ${aanA?'on':''}" data-act="qair" ${aanA?'':'disabled'}>${qi('M3 7h18v6H3zM7 17v3M12 17v3M17 17v3')}<span class="qn">Airco’s</span><span class="qs">${aanA} van ${nAir} aan${aanA?' · tik: alles uit':''}</span></button>`:''}
  <button class="qt ${S.film?'on':''}" data-act="film">${qi('M4 6h16v12H4zM9 3l3 3 3-3')}<span class="qn">Film kijken</span><span class="qs">${S.film?'Actief · tik om te stoppen':'Sync box en woonkamer'}</span></button>
  <button class="qt ${S.media.playing?'on':''}" data-act="play">${qi('M9 18V6l10-2v12M9 18a3 3 0 1 1-3-3M19 16a3 3 0 1 1-3-3')}<span class="qn">Muziek</span><span class="qs">${S.media.playing?'Speelt · tik voor pauze':'Gepauzeerd'}</span></button></div>`;
  const rt=S.rooms.filter(r=>r.lights.length&&!r.own||S.role==='owner'&&r.lights.length);
@@ -364,8 +366,10 @@ overzicht(){resetDue();loadWeather();
  h+=`<h2>Weer vandaag</h2><div class="card">`+(w&&w!=='err'?`<div class="row"><div><div class="big">${Math.round(w.current.temperature_2m)}°</div><div class="name">${WX[w.current.weather_code]||'Onbekend'}</div><div class="state">Voelt als ${Math.round(w.current.apparent_temperature)}° · wind ${Math.round(w.current.wind_speed_10m)} km/u</div></div><div class="state" style="text-align:right">Hoog ${Math.round(w.daily.temperature_2m_max[0])}°<br>Laag ${Math.round(w.daily.temperature_2m_min[0])}°<br>Kans op neerslag ${w.daily.precipitation_probability_max[0]??0}%</div></div>`:w==='err'?'<div class="name">Het weer kon niet worden geladen</div><div class="state">Controleer de internetverbinding. In de demo kan het ophalen ook geblokkeerd zijn.</div>':'<div class="state">Weer laden…</div>')+`</div>`;
  const key=today.slice(0,7);
  if(!D.paid[key])h+=`<div class="card" style="margin-top:12px;border-color:var(--amber)"><div class="row"><div><div class="name">Dennis heeft deze maand nog niet betaald</div><div class="state">Vink af in de agenda zodra het binnen is</div></div><button class="btn alt" data-view="agenda">Agenda</button></div></div>`;
- const rc=S.rooms.filter(r=>r.cl),avg=rc.length?rc.reduce((a,r)=>a+curT(r),0)/rc.length:0;
- h+=`<h2>Temperatuur binnen</h2><div class="state">Gemiddeld ${avg.toFixed(1).replace('.',',')}° · gemeten waarden zijn in de demo nep</div><div class="grid" style="margin-top:8px">`+rc.map(r=>{const c=cc(r);return `<div class="card"><div class="name">${esc(r.name)}</div><div class="state">Nu ${String(curT(r)).replace('.',',')}° · ingesteld ${c.set}°</div><div class="mini"><button class="btn alt" data-act="ctm" data-r="${r.id}" aria-label="Lager ${esc(r.name)}">−</button><button class="btn alt" data-act="ctp" data-r="${r.id}" aria-label="Hoger ${esc(r.name)}">+</button><button class="btn ${c.air?'':'alt'}" data-act="cair" data-r="${r.id}">Airco ${c.air?'aan':'uit'}</button></div></div>`}).join('')+`</div>`;
+ const rc=S.rooms.filter(r=>r.ce),avg=rc.length?rc.reduce((a,r)=>a+curT(r),0)/rc.length:0;
+ const un=S.role==='owner'?HAC.filter(x=>!S.rooms.some(r=>r.ce===x.id)):[];
+ if(un.length)h+=`<h2>Airco koppelen</h2>`+un.map((x,k)=>`<div class="card form"><div class="name">${esc(x.naam)}</div><div class="state">Staat in Home Assistant, nog niet aan een ruimte gekoppeld.</div><select id="cmr${k}" aria-label="Ruimte voor ${esc(x.naam)}">${S.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select><button class="btn" data-act="cmap" data-e="${x.id}" data-i="${k}">Koppelen aan ruimte</button></div>`).join('');
+ if(rc.length)h+=`<h2>Airco</h2><div class="grid" style="margin-top:8px">`+rc.map(r=>{const c=cc(r);return `<div class="card"><div class="name">${esc(r.name)}</div><div class="state">Nu ${String(curT(r)).replace('.',',')}° · ingesteld ${String(c.set).replace('.',',')}°</div>${modeChips(r)}<div class="mini"><button class="btn alt" data-act="ctm" data-r="${r.id}" aria-label="Lager ${esc(r.name)}">−</button><button class="btn alt" data-act="ctp" data-r="${r.id}" aria-label="Hoger ${esc(r.name)}">+</button><button class="btn ${c.air?'':'alt'}" data-act="cair" data-r="${r.id}">Airco ${c.air?'aan':'uit'}</button></div></div>`}).join('')+`</div>`;
  const hL=h;h='';
  const pm=[0,1].map(o=>new Date(new Date().getFullYear(),new Date().getMonth()+o,1,12)).map(ds);
  const ev=[...D.events,...pm.map(d=>({d,t:'',n:'Dennis betaalt',w:'Dennis'}))].filter(e=>e.d>=today&&e.d<=iso(1)).sort((a,b)=>(a.d+a.t).localeCompare(b.d+b.t));
@@ -434,6 +438,7 @@ ${r.img?`<img src="${r.img}" alt="Foto van ${esc(r.n)}" style="width:100%;max-he
  return h+`<h2>Recept toevoegen</h2><div class="card form"><input id="rn" placeholder="Naam van het gerecht"><input id="rm" type="number" min="1" placeholder="Minuten"><textarea id="ri" rows="4" placeholder="Ingrediënten, één per regel"></textarea><textarea id="rs" rows="4" placeholder="Bereiding"></textarea><label class="btn alt" style="display:inline-block;cursor:pointer;text-align:center">Foto toevoegen (optioneel)<input class="sr" type="file" accept="image/*" data-act="rnewphoto"></label><img id="rprev" alt="Voorbeeld van de foto" ${S.rimg?`src="${S.rimg}"`:''} style="display:${S.rimg?'block':'none'};width:100%;max-height:220px;object-fit:cover;border-radius:12px"><button class="btn" data-act="radd">Recept opslaan</button></div>`}};
 async function loadHue(){try{const r=await fetch('/api/ha/scenes');const j=await r.json();S.hsc=r.ok?(j.scenes||[]).filter(x=>!(D.scn||[]).some(c=>c.hue===x.id)):[];S.hmsg=r.ok?(S.hsc.length?'':'Geen nieuwe scènes gevonden.'):(j.error||'Mislukt')}catch(e){S.hmsg='Mislukt'}render()}
 function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{value:''}).value.trim();
+ if(a==='cmap'){const sel=document.getElementById('cmr'+i),q=S.rooms.find(x=>x.id===(sel&&sel.value));if(!q)return true;q.ce=t.dataset.e;q.cl=1;S.redit=1;setTimeout(()=>pollLights(true),700);return true}
  if(a==='hadd'){const h=(S.hsc||[])[i];if(!h)return true;const sel=document.getElementById('hr'+i);(D.scn=D.scn||[]).push({id:'h'+Date.now(),n:h.naam,hue:h.id,room:sel?sel.value:S.rooms[0].id});S.hsc.splice(i,1);return true}
  if(a==='grpsel'){const e=t.dataset.e;S.grpn=v('grpn');const L=S.gsel||(S.gsel=[]);const k=L.indexOf(e);k<0?L.push(e):L.splice(k,1);return true}
  if(a==='scnsel'){const id=t.dataset.r;S.scnn=v('scnn');const rs=[...new Set(allLights().map(x=>x.r.id))];const L=S.ssel||(S.ssel=rs.slice());const k=L.indexOf(id);k<0?L.push(id):L.splice(k,1);return true}
@@ -523,7 +528,7 @@ function render(){
  if(can('muziek')&&r.sp)Rr+=`<h2>Muziek</h2><div class="card"><div class="name">Speaker ${esc(r.name.toLowerCase())}</div><div class="state">${S.media.track}</div>
  <div class="mini"><button class="btn" data-act="play">${S.media.playing?'Pauze':'Afspelen'}</button><span class="state">Volume ${S.media.vol}%</span></div>
  <input type="range" min="0" max="100" value="${S.media.vol}" data-act="vol" aria-label="Volume"></div>`;
- if(can('klimaat')&&r.cl)Rr+=`<h2>Klimaat</h2><div class="card dialcard"><div class="row"><div class="name">Temperatuur</div><div class="row" style="gap:10px"><span class="state">Airco ${S.clim.air?'aan':'uit'}</span><button class="tog" data-act="air" aria-pressed="${S.clim.air}" aria-label="Airco aan of uit"></button></div></div>${dialHTML(r)}</div>`;
+ if(can('klimaat')&&r.ce)Rr+=`<h2>Klimaat</h2><div class="card dialcard"><div class="row"><div class="name">Temperatuur</div><div class="row" style="gap:10px"><span class="state">Airco ${S.clim.air?'aan':'uit'}</span><button class="tog" data-act="air" aria-pressed="${S.clim.air}" aria-label="Airco aan of uit"></button></div></div>${dialHTML(r)}${modeChips(r)}</div>`;
  if(r.id==='voordeur')X+=`<h2>Voordeur</h2><div class="grid"><div class="card soon"><div class="name">Videodeurbel</div><div class="state">Live beeld, beltoon en opnames volgen met de koppeling. Alleen zichtbaar voor Joshua en Lorenzo.</div></div></div>`;
  if(owner){X+=`<h2>Alleen voor jullie</h2><div class="grid">
  <div class="card soon"><div class="name">Videodeurbel</div><div class="state">Koppelen in fase 2</div></div>
@@ -558,6 +563,7 @@ document.addEventListener('click',e=>{
  if(a==='spk'){const sp=S.spk||HAM.map(x=>x.id),k=sp.indexOf(t.dataset.e);S.say=(document.getElementById('say')||{}).value||S.say;k<0?sp.push(t.dataset.e):sp.splice(k,1);S.spk=sp;render();return}
  if(a==='sayspeak'||a==='saycmd'){const text=((document.getElementById('say')||{}).value||'').trim();S.say=text;S.saymsg='Bezig…';render();
   fetch('/api/ha/say',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:a==='saycmd'?'command':'speak',text,targets:S.spk||HAM.map(x=>x.id)})}).then(async x=>{const j=await x.json().catch(()=>({}));S.saymsg=x.ok?(a==='saycmd'?'Opdracht verstuurd.':'Bericht verstuurd naar '+j.speakers+' speaker(s).'):(j.error||'Mislukt');if(x.ok)S.say='';render()}).catch(()=>{S.saymsg='Geen verbinding met de server.';render()});return}
+ if(a==='cmode'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),v=t.dataset.v;c.mode=v;c.air=true;if(LASTC[q.id])LASTC[q.id].air=true;fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:q.id,mode:v})}).then(x=>{setTimeout(()=>pollLights(true),1500)}).catch(()=>{})}}
  if(a==='goroom'){S.room=t.dataset.r;S.view='home';render();return}
  if(a==='rall'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const any=q.lights.some(l=>l.on);q.lights.forEach(l=>l.on=!any);S.scene=null}}
  if(a==='hload'){loadHue();return}
