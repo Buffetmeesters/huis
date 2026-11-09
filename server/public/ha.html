@@ -34,6 +34,15 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   <button id="save">Opslaan en testen</button>
   <p id="msg" role="status"></p>
  </div>
+ <h1 style="margin-top:28px">Internettoegang (Cloudflare)</h1>
+ <div class="card">
+  <p>Plak hier het tunneltoken uit Cloudflare. Het wordt op de server bewaard en de tunnel start daarna vanzelf, meestal binnen een minuut.</p>
+  <label for="ct">Tunneltoken</label>
+  <input id="ct" type="password" autocomplete="off" placeholder="eyJ...">
+  <p id="cs"></p>
+  <button id="csave">Opslaan</button>
+  <p id="cmsg" role="status"></p>
+ </div>
  <div class="card" id="ents" hidden><h2>Gevonden apparaten</h2><p id="cnt"></p><ul id="list"></ul></div>
 </div>
 <script>
@@ -56,6 +65,10 @@ $('#save').onclick=async()=>{
  $('#t').value='';$('#ts').textContent='Token is opgeslagen op de server.';
  test();
 };
+$('#csave').onclick=async()=>{const r=await api('PUT','/api/cf/token',{token:$('#ct').value});
+ $('#cmsg').className=r.ok?'ok':'err';$('#cmsg').textContent=r.ok?'Opgeslagen. De tunnel start nu vanzelf; dat kan een minuut duren.':(r.j.error||'Mislukt');
+ if(r.ok){$('#ct').value='';$('#cs').textContent='Tunneltoken is opgeslagen op de server.'}};
+(async()=>{const r=await api('GET','/api/cf/token');if(r.ok&&r.j.set)$('#cs').textContent='Tunneltoken is opgeslagen op de server.'})();
 (async()=>{const c=await api('GET','/api/ha/config');if(c.ok){if(c.j.url)$('#u').value=c.j.url;if(c.j.tokenSet){$('#ts').textContent='Token is opgeslagen op de server.';test()}}})();
 </script>
 </body>

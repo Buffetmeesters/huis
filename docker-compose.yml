@@ -6,3 +6,14 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/data
+
+  # Tunnel naar internet via Cloudflare. Start pas als het token is opgeslagen
+  # op de pagina "Home Assistant" van het dashboard (herstart zichzelf tot dan).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token-file /data/cf-token
+    volumes:
+      - ./data:/data:ro
+    depends_on:
+      - huis

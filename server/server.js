@@ -249,6 +249,20 @@ http.createServer(async (req, res) => {
       } catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
       return json(res, 405, { error: 'Niet toegestaan' });
     }
+    if (p === '/api/cf/token') {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
+      const f = path.join(DATA, 'cf-token');
+      if (req.method === 'GET') return json(res, 200, { set: fs.existsSync(f) });
+      if (req.method === 'PUT') {
+        const b = JSON.parse(await body(req));
+        const t = String(b.token || '').trim().split(/\s+/).pop();
+        if (!/^[A-Za-z0-9_=\-]{50,}$/.test(t)) return json(res, 400, { error: 'Dat lijkt geen tunneltoken. Plak alleen de lange tekst die begint met eyJ.' });
+        fs.writeFileSync(f, t, { mode: 0o644 });
+        return json(res, 200, { ok: true });
+      }
+      return json(res, 405, { error: 'Niet toegestaan' });
+    }
     if (p.startsWith('/api/ha/')) {
       const s = session(req);
       if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
