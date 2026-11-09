@@ -97,7 +97,7 @@ function filterForGuest(d, gid) {
   const out = { ...d };
   out.guests = g ? [{ ...g, code: undefined }] : [];
   out.notes = (d.notes || []).filter(n => (n.to || []).includes(gid));
-  delete out.paid; delete out.log; delete out.tasks; delete out.shop; delete out.recipes; delete out.events;
+  delete out.gcal; delete out.paid; delete out.log; delete out.tasks; delete out.shop; delete out.recipes; delete out.events;
   out.tasks = []; out.log = []; out.shop = []; out.recipes = []; out.events = []; out.paid = {};
   return out;
 }
@@ -418,12 +418,13 @@ http.createServer(async (req, res) => {
         if (p === '/api/agenda' && req.method === 'GET') {
           const from = url.searchParams.get('from'), to = url.searchParams.get('to');
           if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) return json(res, 400, { error: 'Datum ontbreekt' });
-          const out = [], errors = [];
+          const out = [], errors = [], calsAll = new Map();
           for (const who of gConnected()) {
             try {
               const cl = await gApi(who, 'GET', '/users/me/calendarList?minAccessRole=reader&maxResults=50');
               const cals = (cl.items || []).filter(c => c.selected !== false && !/#(holiday|contacts)@group\.v\.calendar\.google\.com$/.test(c.id)).slice(0, 8);
               for (const c of cals) {
+                if (!calsAll.has(c.id)) calsAll.set(c.id, { id: c.id, name: c.summaryOverride || c.summary || c.id, color: c.backgroundColor || '' });
                 const ev = await gApi(who, 'GET', '/calendars/' + encodeURIComponent(c.id) + '/events?' + new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: '100', timeMin: from + 'T00:00:00Z', timeMax: to + 'T23:59:59Z' }).toString());
                 for (const e of ev.items || []) {
                   if (e.status === 'cancelled') continue;
@@ -441,7 +442,7 @@ http.createServer(async (req, res) => {
           }
           const seen = new Set(), uniq = out.filter(e => { const k = e.calId + '|' + e.id; if (seen.has(k)) return false; seen.add(k); return true; });
           uniq.sort((a, b) => (a.d + (a.t || '00:00')).localeCompare(b.d + (b.t || '00:00')));
-          return json(res, 200, { events: uniq, errors, connected: gConnected() });
+          return json(res, 200, { calendars: [...calsAll.values()], events: uniq, errors, connected: gConnected() });
         }
         if (p === '/api/agenda/add' && req.method === 'POST') {
           const b = JSON.parse(await body(req));
