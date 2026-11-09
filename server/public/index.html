@@ -433,10 +433,10 @@ function tijdwissel(now){const y=now.getFullYear(),t0=new Date(y,now.getMonth(),
 function tijdCard(){const w=tijdwissel(new Date());if(!w)return '';try{if(localStorage.getItem(w.key))return ''}catch(e){}
  return `<div class="card row item" style="margin:0 0 16px;border-color:var(--amber);flex-wrap:wrap"><div style="display:flex;gap:12px;align-items:flex-start;flex:1 1 240px"><span class="ico" style="flex:none">${svgI('M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z')}</span><div><div class="name">${w.t}</div><div class="state">${esc(w.sub)}</div></div></div><button class="btn alt" data-act="tmok" data-k="${w.key}">Begrepen</button></div>`}
 
-const smOpts=()=>HAS.filter(x=>x.id.startsWith('binary_sensor.')&&(/motion|occupancy|presence/.test(x.klasse||'')||/beweging|motion|movement|aanwezig/i.test(x.naam+' '+x.id)));
+const smOpts=()=>HAS.filter(x=>x.id.startsWith('binary_sensor.')&&/motion|occupancy|presence/.test(x.klasse||''));
 const smPrefix=n=>String(n||'').trim().split(/\s+/).slice(0,-1).join(' ').toLowerCase();
 function smLink(q,ent){const x=HAS.find(e=>e.id===ent);q.sm=ent;const pre=smPrefix(x&&x.naam);
- const nm={temperature:/temperatuur|temperature/i,illuminance:/licht|lux|illuminance/i,battery:/batterij|battery/i};const f=k=>{const c=pre?HAS.filter(e=>e.id.startsWith('sensor.')&&(e.klasse===k||nm[k].test(e.naam))&&smPrefix(e.naam)===pre):[];return c[0]&&c[0].id};
+ const f=k=>{const c=pre?HAS.filter(e=>e.id.startsWith('sensor.')&&e.klasse===k&&smPrefix(e.naam)===pre):[];return c[0]&&c[0].id};
  const t=f('temperature'),l=f('illuminance'),b=f('battery');
  if(t)q.stt=t;else delete q.stt;if(l)q.sli=l;else delete q.sli;if(b)q.sbt=b;else delete q.sbt}
 const smAgo=iso=>{if(!iso)return '';const m=Math.round((Date.now()-new Date(iso))/6e4);return m<1?'zojuist':m<60?m+' min geleden':m<1440?Math.round(m/60)+' u geleden':Math.round(m/1440)+' d geleden'};
