@@ -265,13 +265,20 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
    const b=v.b==null?l.b:v.b;if(!!l.on!==v.on||(v.on&&l.b!==b))ch=true;l.on=v.on;l.b=b;l.cm=v.cm||[];l.hs=v.hs;l.k=v.k;LAST[k]={on:v.on,b}}));
   try{const rc=await fetch('/api/climate');if(rc.status===200){const cj=(await rc.json()).climate||{};S.rooms.forEach(rm=>{const v=cj[rm.id];if(!v)return;const c=cc(rm);
     const air=v.mode!=='off',set=v.set!=null?v.set:c.set;
+    const h=HOLD[rm.id];
+    if(h){const klaar=air===h.air&&(h.mode?v.mode===h.mode:(!air||h.set==null||Math.abs(set-h.set)<0.01));
+     if(klaar)delete HOLD[rm.id];
+     else if(Date.now()<h.until){if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.modes=v.modes||[];return}
+     else{delete HOLD[rm.id];toast('De airco in '+rm.name+' heeft de opdracht niet uitgevoerd.')}}
     if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
     c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];LASTC[rm.id]={set,air}})}}catch(e){}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
-const LASTC={},CT={};
+const LASTC={},CT={},HOLD={};
+function toast(t){let d=document.getElementById('toast');if(!d){d=document.createElement('div');d.id='toast';d.setAttribute('role','status');d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:110px;max-width:90vw;background:#2b2b3a;color:#fff;padding:12px 16px;border-radius:14px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:.9rem';document.body.appendChild(d)}d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(()=>{d.style.display='none'},7000)}
+const climFail=(id)=>async x=>{if(x.ok)return;const j=await x.json().catch(()=>({}));toast(j.error||'De opdracht voor de airco is mislukt.');delete HOLD[id];pollLights(true)};
 function pushClim(){S.rooms.forEach(r=>{if(!r.ce)return;const c=cc(r),o=LASTC[r.id];if(!o)return;if(o.set===c.set&&o.air===c.air)return;
- LASTC[r.id]={set:c.set,air:c.air};clearTimeout(CT[r.id]);
- CT[r.id]=setTimeout(()=>{fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,temp:c.set,on:c.air})}).then(x=>{if(!x.ok)pollLights(true)}).catch(()=>{})},o.air!==c.air?0:700)})}
+ LASTC[r.id]={set:c.set,air:c.air};HOLD[r.id]={air:c.air,set:c.set,until:Date.now()+25000};clearTimeout(CT[r.id]);
+ CT[r.id]=setTimeout(()=>{fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,temp:c.set,on:c.air})}).then(climFail(r.id)).catch(()=>{toast('Geen verbinding met de server.')})},o.air!==c.air?0:700)})}
 document.addEventListener('pointerdown',()=>{window.__drag=1});document.addEventListener('pointerup',()=>{setTimeout(()=>{window.__drag=0},400)});
 const srvPut=(k,v)=>{if(GUEST)return;try{fetch('/api/state/'+k,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(v)}).catch(()=>{})}catch(e){}};
 const save=()=>{if(GUEST)return;try{localStorage.setItem('huis-d2',JSON.stringify(D));if(S.redit)localStorage.setItem('huis-r',JSON.stringify(S.rooms))}catch(e){}srvPut('data',D);if(S.redit)srvPut('rooms',S.rooms)};
@@ -563,7 +570,7 @@ document.addEventListener('click',e=>{
  if(a==='spk'){const sp=S.spk||HAM.map(x=>x.id),k=sp.indexOf(t.dataset.e);S.say=(document.getElementById('say')||{}).value||S.say;k<0?sp.push(t.dataset.e):sp.splice(k,1);S.spk=sp;render();return}
  if(a==='sayspeak'||a==='saycmd'){const text=((document.getElementById('say')||{}).value||'').trim();S.say=text;S.saymsg='Bezig…';render();
   fetch('/api/ha/say',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:a==='saycmd'?'command':'speak',text,targets:S.spk||HAM.map(x=>x.id)})}).then(async x=>{const j=await x.json().catch(()=>({}));S.saymsg=x.ok?(a==='saycmd'?'Opdracht verstuurd.':'Bericht verstuurd naar '+j.speakers+' speaker(s).'):(j.error||'Mislukt');if(x.ok)S.say='';render()}).catch(()=>{S.saymsg='Geen verbinding met de server.';render()});return}
- if(a==='cmode'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),v=t.dataset.v;c.mode=v;c.air=true;if(LASTC[q.id])LASTC[q.id].air=true;fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:q.id,mode:v})}).then(x=>{setTimeout(()=>pollLights(true),1500)}).catch(()=>{})}}
+ if(a==='cmode'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const c=cc(q),v=t.dataset.v;c.mode=v;c.air=true;if(LASTC[q.id])LASTC[q.id].air=true;HOLD[q.id]={air:true,mode:v,until:Date.now()+25000};fetch('/api/climate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:q.id,mode:v})}).then(climFail(q.id)).catch(()=>{toast('Geen verbinding met de server.')})}}
  if(a==='goroom'){S.room=t.dataset.r;S.view='home';render();return}
  if(a==='rall'){const q=S.rooms.find(x=>x.id===t.dataset.r);if(q){const any=q.lights.some(l=>l.on);q.lights.forEach(l=>l.on=!any);S.scene=null}}
  if(a==='hload'){loadHue();return}

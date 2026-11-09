@@ -58,6 +58,7 @@ function turnOnData(entity, b) {
   else if (Number.isFinite(+b.h) && Number.isFinite(+b.s)) data.hs_color = [Math.min(360, Math.max(0, +b.h)), Math.min(100, Math.max(0, +b.s))];
   return data;
 }
+function haErr(e) { return /^Home Assistant antwoordde/.test(e.message) ? e.message : 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message); }
 function haCfg() { const r = q.get.get('ha'); const c = r ? JSON.parse(r.v) : null; return c && c.url && c.token ? c : null; }
 function loadRooms() { const r = q.get.get('rooms'); try { const x = r ? JSON.parse(r.v) : []; return Array.isArray(x) ? x : []; } catch { return []; } }
 async function haCall(cfg, path, payload) {
@@ -67,7 +68,7 @@ async function haCall(cfg, path, payload) {
     body: payload ? JSON.stringify(payload) : undefined,
     signal: AbortSignal.timeout(8000),
   });
-  if (!r.ok) throw new Error('Home Assistant antwoordde met ' + r.status);
+  if (!r.ok) { let t = ''; try { t = (await r.text()).slice(0, 200); } catch {} throw new Error('Home Assistant antwoordde met ' + r.status + (t ? ': ' + t : '')); }
   return r.json();
 }
 function cookie(req) {
@@ -201,7 +202,7 @@ http.createServer(async (req, res) => {
       }
       if (!/^scene\.[\w]+$/.test(sc.hue)) return json(res, 400, { error: 'Ongeldige scène' });
       try { await haCall(cfg, '/api/services/scene/turn_on', { entity_id: sc.hue }); return json(res, 200, { ok: true }); }
-      catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
+      catch (e) { return json(res, 502, { error: haErr(e) }); }
     }
     if (p === '/api/lights' || p === '/api/light' || p === '/api/apply' || p === '/api/climate') {
       const s = session(req);
@@ -292,7 +293,7 @@ http.createServer(async (req, res) => {
           }
           return json(res, 200, { ok: true, done, skipped });
         }
-      } catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
+      } catch (e) { return json(res, 502, { error: haErr(e) }); }
       return json(res, 405, { error: 'Niet toegestaan' });
     }
     if (p === '/api/cf/token') {
@@ -397,7 +398,7 @@ http.createServer(async (req, res) => {
             .map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state }));
           return json(res, 200, { aantal: out.length, entiteiten: out });
         }
-      } catch (e) { return json(res, 502, { error: 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message) }); }
+      } catch (e) { return json(res, 502, { error: haErr(e) }); }
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
