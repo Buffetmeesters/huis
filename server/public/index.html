@@ -294,14 +294,14 @@ groepen(){
  h+=gs.map(g=>{const ls=A.filter(x=>g.e.includes(x.e));if(!ls.length)return '';const on=ls.some(x=>x.l.on),avg=Math.round(ls.reduce((a,x)=>a+(x.l.b||60),0)/ls.length);
   return `<div class="card"><div class="row"><div><div class="name">${esc(g.n)}</div><div class="state">${ls.length} ${ls.length===1?'lamp':'lampen'}, ${ls.filter(x=>x.l.on).length} aan</div></div><button class="tog" data-act="gtog" data-g="${g.id}" aria-pressed="${on}" aria-label="${esc(g.n)} aan of uit"></button></div>
   <div class="bri"><input type="range" min="1" max="100" value="${avg}" data-act="gbri" data-g="${g.id}" aria-label="Helderheid ${esc(g.n)}"><span class="state">${avg}%</span></div>
-  ${S.gcol===g.id?swatches('gcol',`data-g="${g.id}"`,null):''}<div class="mini"><button class="btn alt kl" data-act="gcolbtn" data-g="${g.id}">Kleur</button><button class="btn alt kl" data-act="gdel" data-g="${g.id}">${S.cd===g.id?'Zeker weten? Tik nogmaals':'Verwijder'}</button></div></div>`}).join('')||'<div class="state">Nog geen groepen.</div>';
+  ${S.gcol===g.id?swatches('gcol',`data-g="${g.id}"`,null):''}<div class="mini"><button class="btn alt kl" data-act="gcolbtn" data-g="${g.id}">Kleur</button><button class="btn alt kl" data-act="grpdel" data-g="${g.id}">${S.cd===g.id?'Zeker weten? Tik nogmaals':'Verwijder'}</button></div></div>`}).join('')||'<div class="state">Nog geen groepen.</div>';
  const gsel=S.gsel||[];
- h+=`<h3 style="margin:18px 0 6px">Nieuwe groep</h3><div class="card form"><input id="gn" placeholder="Naam, bijvoorbeeld Eetkamer" value="${esc(S.gn||'')}"><div class="chips">${A.map(x=>`<button class="chip" data-act="gsel" data-e="${x.e}" aria-pressed="${gsel.includes(x.e)}">${esc(x.label)}</button>`).join('')}</div><button class="btn" data-act="gadd">Groep opslaan</button></div>`;
+ h+=`<h3 style="margin:18px 0 6px">Nieuwe groep</h3><div class="card form"><input id="grpn" placeholder="Naam, bijvoorbeeld Eetkamer" value="${esc(S.grpn||'')}"><div class="chips">${A.map(x=>`<button class="chip" data-act="grpsel" data-e="${x.e}" aria-pressed="${gsel.includes(x.e)}">${esc(x.label)}</button>`).join('')}</div><button class="btn" data-act="grpadd">Groep opslaan</button></div>`;
  h+='<h2 style="margin-top:24px">Scènes</h2><p class="state">Een scène bewaart de stand van de lampen, met helderheid en kleur.</p>';
- h+=sc.map(c=>`<div class="card row"><div><div class="name">${esc(c.n)}</div><div class="state">${c.hue?'Hue-scène · '+esc((S.rooms.find(r=>r.id===c.room)||{name:'?'}).name):c.items.length+(c.items.length===1?' lamp':' lampen')}</div></div><div class="mini"><button class="btn" data-act="sapply" data-s="${c.id}">Toepassen</button><button class="btn alt" data-act="sdel" data-s="${c.id}">${S.cd===c.id?'Zeker?':'Wis'}</button></div></div>`).join('')||'<div class="state">Nog geen scènes.</div>';
+ h+=sc.map(c=>`<div class="card row"><div><div class="name">${esc(c.n)}</div><div class="state">${c.hue?'Hue-scène · '+esc((S.rooms.find(r=>r.id===c.room)||{name:'?'}).name):c.items.length+(c.items.length===1?' lamp':' lampen')}</div></div><div class="mini"><button class="btn" data-act="sapply" data-s="${c.id}">Toepassen</button><button class="btn alt" data-act="scndel" data-s="${c.id}">${S.cd===c.id?'Zeker?':'Wis'}</button></div></div>`).join('')||'<div class="state">Nog geen scènes.</div>';
  h+=`<h3 style="margin:18px 0 6px">Scènes uit Hue overnemen</h3><div class="card form"><div class="state">Haalt de scènes op die je in de Hue-app hebt gemaakt. Kies bij elke scène de ruimte, dan mogen gasten met het recht “Sfeer” in die ruimte hem gebruiken.</div><button class="btn" data-act="hload">Hue-scènes ophalen</button>${S.hmsg?'<div class="state">'+esc(S.hmsg)+'</div>':''}${(S.hsc||[]).map((x,k)=>{const g=(x.groep||'').toLowerCase(),guess=(S.rooms.find(r=>r.name.toLowerCase()===g)||S.rooms.find(r=>g&&(r.name.toLowerCase().includes(g)||g.includes(r.name.toLowerCase())))||S.rooms[0]).id;return `<div class="mini"><span style="flex:1">${esc(x.naam)}<span class="state"> ${esc(x.groep||'')}</span></span><select id="hr${k}" aria-label="Ruimte voor ${esc(x.naam)}">${S.rooms.map(r=>`<option value="${r.id}" ${r.id===guess?'selected':''}>${esc(r.name)}</option>`).join('')}</select><button class="btn" data-act="hadd" data-i="${k}">Overnemen</button></div>`}).join('')}</div>`;
  const rs=[...new Set(A.map(x=>x.r.id))],ssel=S.ssel||rs;
- h+=`<h3 style="margin:18px 0 6px">Huidige stand opslaan</h3><div class="card form"><input id="sn" placeholder="Naam, bijvoorbeeld Film of Diner" value="${esc(S.sn||'')}"><div class="state">Welke ruimtes horen erbij?</div><div class="chips">${rs.map(id=>`<button class="chip" data-act="ssel" data-r="${id}" aria-pressed="${ssel.includes(id)}">${esc(S.rooms.find(r=>r.id===id).name)}</button>`).join('')}</div><button class="btn" data-act="sadd">Scène opslaan</button></div>`;
+ h+=`<h3 style="margin:18px 0 6px">Huidige stand opslaan</h3><div class="card form"><input id="scnn" placeholder="Naam, bijvoorbeeld Film of Diner" value="${esc(S.scnn||'')}"><div class="state">Welke ruimtes horen erbij?</div><div class="chips">${rs.map(id=>`<button class="chip" data-act="scnsel" data-r="${id}" aria-pressed="${ssel.includes(id)}">${esc(S.rooms.find(r=>r.id===id).name)}</button>`).join('')}</div><button class="btn" data-act="scnadd">Scène opslaan</button></div>`;
  return h},
 ruimtes(){
  const FX={sn:'Bewegingssensor',rc:'Afstandsbediening',cl:'Temperatuur en airco',sp:'Speaker',own:'Alleen Joshua en Lorenzo'};
@@ -414,14 +414,14 @@ ${r.img?`<img src="${r.img}" alt="Foto van ${esc(r.n)}" style="width:100%;max-he
 async function loadHue(){try{const r=await fetch('/api/ha/scenes');const j=await r.json();S.hsc=r.ok?(j.scenes||[]).filter(x=>!(D.scn||[]).some(c=>c.hue===x.id)):[];S.hmsg=r.ok?(S.hsc.length?'':'Geen nieuwe scènes gevonden.'):(j.error||'Mislukt')}catch(e){S.hmsg='Mislukt'}render()}
 function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{value:''}).value.trim();
  if(a==='hadd'){const h=(S.hsc||[])[i];if(!h)return true;const sel=document.getElementById('hr'+i);(D.scn=D.scn||[]).push({id:'h'+Date.now(),n:h.naam,hue:h.id,room:sel?sel.value:S.rooms[0].id});S.hsc.splice(i,1);return true}
- if(a==='gsel'){const e=t.dataset.e;S.gn=v('gn');const L=S.gsel||(S.gsel=[]);const k=L.indexOf(e);k<0?L.push(e):L.splice(k,1);return true}
- if(a==='ssel'){const id=t.dataset.r;S.sn=v('sn');const rs=[...new Set(allLights().map(x=>x.r.id))];const L=S.ssel||(S.ssel=rs.slice());const k=L.indexOf(id);k<0?L.push(id):L.splice(k,1);return true}
- if(a==='gadd'){const n=v('gn'),L=S.gsel||[];if(!n||!L.length){S.gn=n;return true}(D.groups=D.groups||[]).push({id:'g'+Date.now(),n,e:L.slice()});S.gsel=[];S.gn='';return true}
- if(a==='gdel'){if(S.cd!==t.dataset.g){S.cd=t.dataset.g;return false}D.groups=(D.groups||[]).filter(g=>g.id!==t.dataset.g);S.cd=null;return true}
- if(a==='sdel'){if(S.cd!==t.dataset.s){S.cd=t.dataset.s;return false}D.scn=(D.scn||[]).filter(c=>c.id!==t.dataset.s);S.cd=null;return true}
- if(a==='sadd'){const n=v('sn'),A=allLights(),rs=S.ssel||[...new Set(A.map(x=>x.r.id))];if(!n){return true}
+ if(a==='grpsel'){const e=t.dataset.e;S.grpn=v('grpn');const L=S.gsel||(S.gsel=[]);const k=L.indexOf(e);k<0?L.push(e):L.splice(k,1);return true}
+ if(a==='scnsel'){const id=t.dataset.r;S.scnn=v('scnn');const rs=[...new Set(allLights().map(x=>x.r.id))];const L=S.ssel||(S.ssel=rs.slice());const k=L.indexOf(id);k<0?L.push(id):L.splice(k,1);return true}
+ if(a==='grpadd'){const n=v('grpn'),L=S.gsel||[];if(!n||!L.length){S.grpn=n;return true}(D.groups=D.groups||[]).push({id:'g'+Date.now(),n,e:L.slice()});S.gsel=[];S.grpn='';return true}
+ if(a==='grpdel'){if(S.cd!==t.dataset.g){S.cd=t.dataset.g;return false}D.groups=(D.groups||[]).filter(g=>g.id!==t.dataset.g);S.cd=null;return true}
+ if(a==='scndel'){if(S.cd!==t.dataset.s){S.cd=t.dataset.s;return false}D.scn=(D.scn||[]).filter(c=>c.id!==t.dataset.s);S.cd=null;return true}
+ if(a==='scnadd'){const n=v('scnn'),A=allLights(),rs=S.ssel||[...new Set(A.map(x=>x.r.id))];if(!n){return true}
   const items=A.filter(x=>rs.includes(x.r.id)).map(x=>{const l=x.l;if(!l.on)return {e:x.e,on:false};const it={e:x.e,on:true,b:l.b};if(l.k)it.k=l.k;else if(l.hs){it.h=l.hs[0];it.s=l.hs[1]}return it});
-  if(!items.length)return true;(D.scn=D.scn||[]).push({id:'s'+Date.now(),n,items});S.sn='';return true}
+  if(!items.length)return true;(D.scn=D.scn||[]).push({id:'s'+Date.now(),n,items});S.scnn='';return true}
  if(a==='me')D.me=t.dataset.k;
  else if(a==='evadd'){if(v('en'))D.events.push({d:v('ed'),t:v('et'),n:v('en'),w:v('ew')})}
  else if(a==='evdel')D.events.splice(i,1);
@@ -519,7 +519,7 @@ document.addEventListener('click',e=>{
  if(t.dataset.room){S.room=t.dataset.room;render();return}
  if(t.dataset.view){S.view=t.dataset.view;render();return}
  const a=t.dataset.act;if(!a)return;
- if(!['roomdel','gdel','sdel'].includes(a))S.cd=null;
+ if(!['roomdel','grpdel','scndel'].includes(a))S.cd=null;
  if(act2(a,t)){save();render();return}
  if(a==='tog'){const l=r.lights[+t.dataset.i];l.on=!l.on;S.scene=null}
  if(a==='qlights'){S.rooms.forEach(q=>q.lights.forEach(l=>l.on=false));S.scene=null}
