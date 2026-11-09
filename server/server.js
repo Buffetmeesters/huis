@@ -116,6 +116,45 @@ function file(res, name, type) {
   fs.createReadStream(path.join(PUB, name)).pipe(res);
 }
 
+
+// ---- Google Agenda ----
+const kvGet = k => { const r = q.get.get(k); try { return r ? JSON.parse(r.v) : null; } catch { return null; } };
+const kvPut = (k, v) => q.put.run(k, JSON.stringify(v), Date.now());
+const kvDel = k => db.prepare('DELETE FROM kv WHERE k = ?').run(k);
+const G_TOKEN = process.env.GOOGLE_TOKEN_URL || 'https://oauth2.googleapis.com/token';
+const G_API = process.env.GOOGLE_API_URL || 'https://www.googleapis.com/calendar/v3';
+const GSCOPE = 'https://www.googleapis.com/auth/calendar';
+const gAccess = {};
+function gOrigin(req) { const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim(); return proto + '://' + req.headers.host; }
+async function gForm(url, data) {
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(data) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error_description || j.error || ('Google antwoordde met ' + r.status)); e.code = j.error; throw e; }
+  return j;
+}
+async function gToken(who) {
+  const c = gAccess[who]; if (c && c.exp > Date.now() + 60e3) return c.t;
+  const cfg = kvGet('gcfg'), tok = kvGet('gtok:' + who);
+  if (!cfg || !tok) throw new Error('Google Agenda is niet gekoppeld voor ' + who);
+  try {
+    const j = await gForm(G_TOKEN, { client_id: cfg.id, client_secret: cfg.secret, refresh_token: tok.refresh, grant_type: 'refresh_token' });
+    gAccess[who] = { t: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
+    return j.access_token;
+  } catch (e) {
+    if (e.code === 'invalid_grant') { kvDel('gtok:' + who); delete gAccess[who]; throw new Error('De koppeling van ' + who + ' met Google is verlopen. Koppel opnieuw.'); }
+    throw e;
+  }
+}
+async function gApi(who, method, path_, bodyObj) {
+  const t = await gToken(who);
+  const r = await fetch(G_API + path_, { method, headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' }, body: bodyObj ? JSON.stringify(bodyObj) : undefined });
+  if (r.status === 204) return {};
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('Google Agenda: ' + ((j.error && j.error.message) || r.status));
+  return j;
+}
+const gConnected = () => OWNERS.filter(n => kvGet('gtok:' + n));
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const ip = req.headers['cf-connecting-ip'] || req.socket.remoteAddress;
@@ -326,6 +365,111 @@ http.createServer(async (req, res) => {
         }
       } catch (e) { return json(res, 502, { error: haErr(e) }); }
       return json(res, 405, { error: 'Niet toegestaan' });
+    }
+
+    if (p === '/api/google/callback') {
+      const st = url.searchParams.get('state'), code = url.searchParams.get('code');
+      const nonce = st && kvGet('gstate:' + st);
+      if (st) kvDel('gstate:' + st);
+      const back = '/?google=';
+      if (!nonce || nonce.exp < Date.now()) { res.writeHead(302, { location: back + 'verlopen' }); return res.end(); }
+      if (!code) { res.writeHead(302, { location: back + 'geweigerd' }); return res.end(); }
+      try {
+        const cfg = kvGet('gcfg');
+        const j = await gForm(G_TOKEN, { code, client_id: cfg.id, client_secret: cfg.secret, redirect_uri: nonce.redir, grant_type: 'authorization_code' });
+        if (!j.refresh_token) { res.writeHead(302, { location: back + 'geenrefresh' }); return res.end(); }
+        kvPut('gtok:' + nonce.ref, { refresh: j.refresh_token, at: Date.now() });
+        delete gAccess[nonce.ref];
+        res.writeHead(302, { location: back + 'ok' }); return res.end();
+      } catch (e) { console.log('google callback', e.message); res.writeHead(302, { location: back + 'fout' }); return res.end(); }
+    }
+    if (p === '/api/google/config') {
+      const s = session(req);
+      if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      const cfg = kvGet('gcfg') || {};
+      if (req.method === 'GET') return json(res, 200, { idSet: !!cfg.id, secretSet: !!cfg.secret, redirect: 'https://huis.huizecpvh.nl/api/google/callback' });
+      if (req.method === 'PUT') {
+        const b = JSON.parse(await body(req));
+        const id = String(b.id || cfg.id || '').trim(), secret = String(b.secret || cfg.secret || '').trim();
+        if (!/^[\w\-]+\.apps\.googleusercontent\.com$/.test(id)) return json(res, 400, { error: 'Dat lijkt geen client-ID. Het eindigt op .apps.googleusercontent.com' });
+        if (secret.length < 10) return json(res, 400, { error: 'Vul het client-geheim in.' });
+        kvPut('gcfg', { id, secret });
+        return json(res, 200, { ok: true });
+      }
+      return json(res, 405, { error: 'Niet toegestaan' });
+    }
+    if (p.startsWith('/api/google/') || p === '/api/agenda' || p.startsWith('/api/agenda/')) {
+      const s = session(req);
+      if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      try {
+        if (p === '/api/google/status') {
+          const cfg = kvGet('gcfg');
+          return json(res, 200, { configured: !!(cfg && cfg.id && cfg.secret), me: s.ref, connected: gConnected() });
+        }
+        if (p === '/api/google/auth') {
+          const cfg = kvGet('gcfg');
+          if (!cfg || !cfg.id) return json(res, 400, { error: 'De beheerder moet eerst het client-ID en geheim invullen op de beheerpagina.' });
+          const nonce = crypto.randomBytes(16).toString('hex'), redir = gOrigin(req) + '/api/google/callback';
+          kvPut('gstate:' + nonce, { ref: s.ref, exp: Date.now() + 10 * 60e3, redir });
+          const u = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({ client_id: cfg.id, redirect_uri: redir, response_type: 'code', scope: GSCOPE, access_type: 'offline', prompt: 'consent', state: nonce }).toString();
+          return json(res, 200, { url: u, redirect: redir });
+        }
+        if (p === '/api/google/disconnect' && req.method === 'POST') { kvDel('gtok:' + s.ref); delete gAccess[s.ref]; return json(res, 200, { ok: true }); }
+        if (p === '/api/agenda' && req.method === 'GET') {
+          const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) return json(res, 400, { error: 'Datum ontbreekt' });
+          const out = [], errors = [];
+          for (const who of gConnected()) {
+            try {
+              const cl = await gApi(who, 'GET', '/users/me/calendarList?minAccessRole=reader&maxResults=50');
+              const cals = (cl.items || []).filter(c => c.selected !== false && !/#(holiday|contacts)@group\.v\.calendar\.google\.com$/.test(c.id)).slice(0, 8);
+              for (const c of cals) {
+                const ev = await gApi(who, 'GET', '/calendars/' + encodeURIComponent(c.id) + '/events?' + new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: '100', timeMin: from + 'T00:00:00Z', timeMax: to + 'T23:59:59Z' }).toString());
+                for (const e of ev.items || []) {
+                  if (e.status === 'cancelled') continue;
+                  const allDay = !!(e.start && e.start.date);
+                  const st = allDay ? e.start.date : (e.start && e.start.dateTime) || '';
+                  if (!st) continue;
+                  let d, t = '';
+                  if (allDay) d = st; else { const dd = new Date(st); const f = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(dd); d = f.slice(0, 10); t = f.slice(11, 16); }
+                  let t2 = '';
+                  if (!allDay && e.end && e.end.dateTime) t2 = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit' }).format(new Date(e.end.dateTime));
+                  out.push({ id: e.id, who, calId: c.id, cal: c.summaryOverride || c.summary || '', color: c.backgroundColor || '', d, t, t2, allDay, n: e.summary || '(zonder titel)', loc: e.location || '', canEdit: ['owner', 'writer'].includes(c.accessRole) });
+                }
+              }
+            } catch (e) { errors.push(e.message); }
+          }
+          out.sort((a, b) => (a.d + (a.t || '00:00')).localeCompare(b.d + (b.t || '00:00')));
+          return json(res, 200, { events: out, errors, connected: gConnected() });
+        }
+        if (p === '/api/agenda/add' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          const who = OWNERS.includes(b.who) ? b.who : s.ref;
+          if (!gConnected().includes(who)) return json(res, 400, { error: 'Google Agenda van ' + who + ' is niet gekoppeld' });
+          const title = String(b.title || '').trim().slice(0, 200);
+          if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(b.date || '')) return json(res, 400, { error: 'Titel en datum zijn nodig' });
+          let ev;
+          if (!b.time) {
+            const nx = new Date(b.date + 'T12:00:00Z'); nx.setUTCDate(nx.getUTCDate() + 1);
+            ev = { summary: title, start: { date: b.date }, end: { date: nx.toISOString().slice(0, 10) } };
+          } else {
+            if (!/^\d{2}:\d{2}$/.test(b.time)) return json(res, 400, { error: 'Tijd klopt niet' });
+            let end = /^\d{2}:\d{2}$/.test(b.end || '') && b.end > b.time ? b.end : null;
+            if (!end) { const h = (+b.time.slice(0, 2) + 1) % 24; end = (h === 0 ? '23:59' : String(h).padStart(2, '0') + b.time.slice(2)); }
+            ev = { summary: title, start: { dateTime: b.date + 'T' + b.time + ':00', timeZone: 'Europe/Amsterdam' }, end: { dateTime: b.date + 'T' + end + ':00', timeZone: 'Europe/Amsterdam' } };
+          }
+          if (b.loc) ev.location = String(b.loc).slice(0, 200);
+          await gApi(who, 'POST', '/calendars/primary/events', ev);
+          return json(res, 200, { ok: true });
+        }
+        if (p === '/api/agenda/del' && req.method === 'POST') {
+          const b = JSON.parse(await body(req));
+          if (!OWNERS.includes(b.who) || !gConnected().includes(b.who)) return json(res, 400, { error: 'Onbekend account' });
+          await gApi(b.who, 'DELETE', '/calendars/' + encodeURIComponent(String(b.calId)) + '/events/' + encodeURIComponent(String(b.id)));
+          return json(res, 200, { ok: true });
+        }
+      } catch (e) { return json(res, 502, { error: e.message }); }
+      return json(res, 404, { error: 'Onbekend' });
     }
     if (p === '/api/cf/token') {
       const s = session(req);

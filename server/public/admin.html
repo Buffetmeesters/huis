@@ -71,6 +71,19 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card">
+   <h2>Google Agenda</h2>
+   <p>Maak eerst bij Google een OAuth-client (webtoepassing) en vul hier de twee gegevens in. Joshua en Lorenzo koppelen daarna zelf hun agenda vanuit het tabblad Agenda.</p>
+   <p>Omleidings-URI bij Google: <code id="gr">https://huis.huizecpvh.nl/api/google/callback</code></p>
+   <label for="gi">Client-ID</label>
+   <input id="gi" autocomplete="off" autocapitalize="off" placeholder="123456-abc.apps.googleusercontent.com">
+   <label for="gs">Client-geheim</label>
+   <input id="gs" type="password" autocomplete="off" placeholder="Alleen invullen om het geheim te wijzigen">
+   <p id="gst"></p>
+   <button id="gsave">Opslaan</button>
+   <p id="gmsg" role="status"></p>
+  </div>
+
+  <div class="card">
    <h2>Wachtwoord opnieuw instellen</h2>
    <p>Als Joshua of Lorenzo zijn wachtwoord kwijt is. Hij wordt overal uitgelogd.</p>
    <label for="rn">Account</label>
@@ -130,6 +143,9 @@ $('#found').onclick=e=>{const u=e.target.dataset&&e.target.dataset.u;if(u){$('#u
 $('#csave').onclick=async()=>{const r=await api('PUT','/api/cf/token',{token:$('#ct').value});
  say('#cmsg',r.ok?'Opgeslagen. De tunnel start nu vanzelf; dat kan een minuut duren.':(r.j.error||'Mislukt'),r.ok?'ok':'err');
  if(r.ok){$('#ct').value='';say('#cs','Tunneltoken is opgeslagen op de server.')}};
+$('#gsave').onclick=async()=>{const r=await api('PUT','/api/google/config',{id:$('#gi').value,secret:$('#gs').value});
+ say('#gmsg',r.ok?'Opgeslagen. Ga naar het tabblad Agenda om de agenda te koppelen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');
+ if(r.ok){$('#gs').value='';say('#gst','Client-ID en geheim zijn opgeslagen op de server.')}};
 $('#rsave').onclick=async()=>{const r=await api('POST','/api/admin/reset',{name:$('#rn').value,password:$('#rp').value});
  say('#rmsg',r.ok?'Wachtwoord van '+$('#rn').value+' is ingesteld.':(r.j.error||'Mislukt'),r.ok?'ok':'err');if(r.ok)$('#rp').value=''};
 $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{password:$('#ap').value});
@@ -140,6 +156,7 @@ $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{pa
  if(me.j.admin){
   $('#who').textContent='Ingelogd als beheerder.';$('#admin').hidden=false;
   const c=await api('GET','/api/ha/config');if(c.ok){if(c.j.url)$('#u').value=c.j.url;if(c.j.tokenSet){say('#ts','Token is opgeslagen op de server.');test()}}
+  const g0=await api('GET','/api/google/config');if(g0.ok&&g0.j.idSet)say('#gst','Client-ID en geheim zijn opgeslagen op de server.');
   const t=await api('GET','/api/cf/token');if(t.ok&&t.j.set)say('#cs','Tunneltoken is opgeslagen op de server.');
   const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
  }else if(me.j.canCreateAdmin){$('#create').hidden=false;$('#who').textContent='Er is nog geen beheerder ingesteld.'}
