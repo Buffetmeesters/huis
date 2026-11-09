@@ -577,6 +577,7 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
+    if (p === '/privacy') return file(res, 'privacy.html', 'text/html; charset=utf-8');
     if (p === '/admin') {
       const s = session(req);
       if (isAdmin(s) || (s && s.role === 'owner' && s.ref === 'Joshua' && !q.owner.get(ADMIN))) return file(res, 'admin.html', 'text/html; charset=utf-8');

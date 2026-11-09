@@ -198,6 +198,24 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 .skyw{position:absolute;right:14px;bottom:-14px;font-size:6.5rem;opacity:.28;line-height:1;pointer-events:none;z-index:0;filter:saturate(1.1)}
 .skyc .fest{background:rgba(255,255,255,.22);font-weight:600}
 @media (max-width:420px){.skyt{font-size:2.9rem}.skyi{width:52px;height:52px}.skyi svg{width:28px;height:28px}}
+
+@media (min-width:900px){.ftgrid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}.ft,.rt{min-height:150px;padding:20px}.ft .ico,.rt .ico{width:54px;height:54px}.ft .ico svg,.rt .ico svg{width:28px;height:28px}.ftn{font-size:1.15rem}.ft .state,.rt .state{font-size:.9rem}}
+.ftgrid+h2,.qgrid{margin-top:8px}
+body.kiosk .rail,body.kiosk #botnav,body.kiosk #logout,body.kiosk .seg,body.kiosk #hal,body.kiosk .note,body.kiosk #views{display:none!important}
+body.kiosk{padding-bottom:20px!important}
+body.kiosk .shell{display:block;max-width:1400px}
+body.kiosk header{margin-bottom:10px}
+body.kiosk .ftgrid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}
+body.kiosk .ft,body.kiosk .rt{min-height:190px;padding:24px;border-radius:28px}
+body.kiosk .ftn{font-size:1.35rem}
+body.kiosk .ft .ico,body.kiosk .rt .ico{width:64px;height:64px}
+body.kiosk .ft .ico svg,body.kiosk .rt .ico svg{width:34px;height:34px}
+body.kiosk .tog{width:64px;height:38px}
+body.kiosk .tog::after{width:30px;height:30px;top:4px;left:4px}
+body.kiosk .tog[aria-pressed=true]::after{transform:translateX(26px)}
+body.kiosk .btn,body.kiosk .chip{padding:14px 20px;font-size:1.05rem}
+body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
+.alloff{display:flex;gap:12px;margin:18px 0 4px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -214,7 +232,7 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 <nav class="tabs" id="views" aria-label="Onderdelen"></nav>
 <nav class="tabs" id="tabs" aria-label="Kamers"></nav>
 <main id="main"></main>
-<p class="note">Demo-modus: alle gegevens zijn nep en blijven op dit apparaat staan (delen met het huishouden komt met de koppeling). Volgende stap is de koppeling met Home Assistant (Hue, Google Cast, Tado, airco’s).</p>
+
 </div>
 </div>
 <nav class="botnav" id="botnav" aria-label="Menu"></nav>
@@ -416,8 +434,8 @@ function floorsPage(){const fls=FL.map((n,f)=>({n,f,rs:rl().filter(r=>r.f===f)})
  const extra=S.role==='owner'?'':'';
  return skyHTML()+`<h2>Verdiepingen</h2><div class="ftgrid">`+fls.map(x=>{const ls=x.rs.flatMap(r=>r.lights),aan=ls.filter(l=>l.on).length,t=x.rs.filter(r=>r.ce&&r.c&&r.c.cur!=null);
   return `<button class="ft ${aan?'on':''}" data-act="gofl" data-f="${x.f}"><span class="ico">${svgI(x.f===0?RI.huis:RI.trap)}</span><span class="ftn">${esc(x.n)}</span><span class="state">${x.rs.length} ${x.rs.length===1?'ruimte':'ruimtes'}${ls.length?' · '+aan+' '+(aan===1?'lamp':'lampen')+' aan':''}${t.length?' · '+String((t.reduce((a,r)=>a+r.c.cur,0)/t.length).toFixed(1)).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`+(S.role==='owner'?huisTiles():'')}
-function floorPage(f){const rs=rl().filter(r=>r.f===f);
- return `<button class="back" data-act="goback">‹ Huis</button><h2 style="margin-top:6px">${esc(FL[f]||'')}</h2><div class="ftgrid">`+rs.map(r=>{const n=r.lights.filter(l=>l.on).length,t=r.ce&&r.c&&r.c.cur!=null;
+function floorPage(f){const rs=rl().filter(r=>r.f===f),kb=KIOSK!=null,lit=rs.some(r=>r.lights.some(l=>l.on));
+ return (kb?skyHTML():`<button class="back" data-act="goback">‹ Huis</button><h2 style="margin-top:6px">${esc(FL[f]||'')}</h2>`)+(S.role==='owner'&&lit||kb&&lit?`<div class="alloff"><button class="btn alt" data-act="flalloff" data-f="${f}">Alle lampen op deze verdieping uit</button></div>`:'')+`<div class="ftgrid">`+rs.map(r=>{const n=r.lights.filter(l=>l.on).length,t=r.ce&&r.c&&r.c.cur!=null;
   return `<button class="rt ${n?'on':''}" data-act="gort" data-r="${r.id}"><span class="ico">${svgI(roomIco(r))}</span><span class="ftn">${esc(r.name)}</span><span class="state">${r.lights.length?(n?n+' van '+r.lights.length+' aan':'Alles uit'):'Geen lampen'}${t?' · '+String(r.c.cur).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`}
 const VIEWS={
 groepen(){
@@ -598,7 +616,10 @@ function dialHTML(r){const c=cc(r),mn=15,mx=28,f=(c.set-mn)/(mx-mn);let t='';
   t+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${i/40<=f+.001?'var(--ring)':'rgba(255,255,255,.2)'}" stroke-width="2.5" stroke-linecap="round"/>`}
  const nu=String(curT(r)).replace('.',',');
  return `<div class="dial"><button class="btn alt rd" data-act="tm" aria-label="Temperatuur lager">−</button><svg viewBox="0 0 220 220" role="img" aria-label="Ingesteld op ${c.set} graden, nu ${nu} graden">${t}<circle cx="110" cy="110" r="72" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.12)"/><text x="110" y="108" text-anchor="middle" class="dl">${c.set}°C</text><text x="110" y="130" text-anchor="middle" class="ds">nu ${nu}°</text><text x="48" y="200" text-anchor="middle" class="dm">${mn}°</text><text x="172" y="200" text-anchor="middle" class="dm">${mx}°</text></svg><button class="btn alt rd" data-act="tp" aria-label="Temperatuur hoger">+</button></div>`}
+const KIOSK=(()=>{const m=location.search.match(/[?&]verdieping=(\d)/);return m&&FL[+m[1]]?+m[1]:null})();
+if(KIOSK!=null)document.body.classList.add('kiosk');
 function render(){
+ if(KIOSK!=null){S.view='home';S.fl=KIOSK}
  const owner=S.role==='owner';
  $('#sub').textContent=owner?'Eigenaarsweergave: alles zichtbaar':'Gastenweergave: alleen wat jullie toestaan';
  if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;S.view=(S.view==='notities'&&myNotes().length)?'notities':'home'}
@@ -608,7 +629,8 @@ function render(){
  $('#rail').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg><span>${n}</span></button>`).join('');
  const nb=owner?['overzicht','home','agenda','taken']:vl.map(x=>x[0]);
  $('#botnav').innerHTML=nb.map(k=>{const n=(VL.find(x=>x[0]===k)||[k,k])[1];return `<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></button>`}).join('')+(owner?`<button data-view="meer" aria-pressed="${!nb.includes(S.view)}" aria-label="Meer" title="Meer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="${IC.meer}"/></svg></button>`:'');
- $('#title').textContent=owner?'Hoi '+D.me+'!':(G()?'Welkom, '+G().n:'Welkom');
+ $('#title').textContent=KIOSK!=null?FL[KIOSK]:owner?'Hoi '+D.me+'!':(G()?'Welkom, '+G().n:'Welkom');
+ if(KIOSK!=null)$('#sub').textContent='';
  $('#tabs').style.display='none';
  $('#tabs').innerHTML=FL.map((fn,f)=>{const q=rl().filter(r=>r.f===f);return q.length?`<div class="fl">${fn}</div>`+q.map(r=>`<button data-room="${r.id}" aria-pressed="${r.id===S.room}">${r.name}</button>`).join(''):''}).join('');
  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.role===S.role));
@@ -672,6 +694,7 @@ document.addEventListener('click',e=>{
  if(a==='gcgo'){fetch('/api/google/auth').then(r=>r.json()).then(j=>{if(j.url)location.href=j.url;else toast(j.error||'Koppelen is mislukt.')}).catch(()=>toast('Geen verbinding met de server.'))}
  if(a==='gcdisc'){fetch('/api/google/disconnect',{method:'POST'}).then(()=>loadGoogle(true))}
  if(a==='gcdel'){const e=S.g&&S.g.events[+t.dataset.i];if(e){fetch('/api/agenda/del',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({who:e.who,calId:e.calId,id:e.id})}).then(r=>{if(r.status!==200)toast('Wissen is mislukt.');loadGoogle(true)})}}
+ if(a==='flalloff'){const f=+t.dataset.f;S.rooms.filter(q=>q.f===f).forEach(q=>q.lights.forEach(l=>{l.on=false}));S.scene=null}
  if(a==='gofl'){S.fl=+t.dataset.f;S.rm=0;render();window.scrollTo(0,0);return}
  if(a==='goback'){S.fl=null;S.rm=0;render();return}
  if(a==='goback2'){S.rm=0;render();window.scrollTo(0,0);return}
