@@ -105,6 +105,17 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card">
+   <h2>Bank koppelen (Enable Banking)</h2>
+   <p>Hiermee haalt het Huishoudboekje de Rabobank-afschriften zelf op, een paar keer per dag. Alleen Joshua en Lorenzo zien de boekingen. Maak eerst een gratis account en een <b>Production</b>-applicatie op enablebanking.com met als terugkeer-adres <code>https://huis.huizecpvh.nl/api/bank/cb</code>. Kies het .pem-bestand uit die applicatie hieronder, dus niet in een chat plakken. De sleutel staat daarna in de database en dus ook in de back-up.</p>
+   <label for="ebid">Application ID</label><input id="ebid" autocomplete="off">
+   <label for="ebpem">Sleutelbestand (.pem)</label><input id="ebpem" type="file" accept=".pem,.key,text/plain">
+   <label for="ebred">Terugkeer-adres (alleen aanpassen als je het anders hebt ingesteld)</label><input id="ebred" placeholder="https://huis.huizecpvh.nl/api/bank/cb">
+   <button id="ebsave">Opslaan</button> <button id="ebgo">Rabobank koppelen</button> <button id="ebun">Ontkoppelen</button>
+   <p id="ebmsg" role="status"></p><p id="ebst"></p>
+   <p>Bij het koppelen log je in met de Rabo Bankieren-app en geef je toestemming voor alleen-lezen inzage. Die toestemming loopt na enkele maanden af; dan moet je hier opnieuw koppelen.</p>
+  </div>
+
+  <div class="card">
    <h2>Back-up</h2>
    <p>Elke nacht maakt de server automatisch een kopie van alle gegevens (gebruikers, taken, recepten, instellingen). De laatste 20 blijven bewaard op de server in de map <code>data/backups</code>. Download af en toe een kopie en bewaar die ergens anders (bijvoorbeeld op je computer of in de cloud). Dan ben je ook veilig als de hele server uitvalt.</p>
    <button id="bnow">Nu een back-up maken</button>
@@ -230,6 +241,10 @@ async function sload(){
 async function bload(){const r=await api('GET','/api/backup/list');if(!r.ok)return;
  $('#blist').innerHTML=r.j.files.map(f=>`<li><a href="/api/backup/download?f=${encodeURIComponent(f.naam)}">${f.naam}</a> · ${f.kb} KB · ${new Date(f.tijd).toLocaleString('nl-NL')}</li>`).join('')||'<li>Nog geen back-ups.</li>'}
 $('#bnow').onclick=async()=>{say('#bmsg','Bezig…');const r=await api('POST','/api/backup/now');say('#bmsg',r.ok?'Back-up gemaakt: '+r.j.naam:(r.j.error||'Mislukt'),r.ok?'ok':'err');bload()};
+async function ebload(){const r=await api('GET','/api/bank/status');if(!r.ok)return;const c=r.j;$('#ebid').value=c.appId||'';$('#ebred').value=c.redirect||'';$('#ebst').textContent=(c.configured?'Sleutel ingesteld. ':'Nog geen sleutel. ')+(c.linked?'Gekoppeld ('+c.accounts+' rekening(en)), toestemming tot '+(c.valid_until?new Date(c.valid_until).toLocaleDateString('nl-NL'):'onbekend')+'. Laatste keer opgehaald: '+(c.lastSync?new Date(c.lastSync).toLocaleString('nl-NL'):'nog niet')+(c.lastErr?'. Fout: '+c.lastErr:'.'):'Nog niet gekoppeld.')}
+$('#ebsave').onclick=async()=>{const f=$('#ebpem').files[0],b={appId:$('#ebid').value,redirect:$('#ebred').value};if(f)b.pem=await f.text();const r=await api('PUT','/api/bank/cfg',b);say('#ebmsg',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');ebload()};
+$('#ebgo').onclick=async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/api/bank/start');if(r.ok&&r.j.url)location.href=r.j.url;else say('#ebmsg',r.j.error||'Mislukt','err')};
+$('#ebun').onclick=async()=>{if(!confirm('Bank ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink');ebload()};
 async function gload(){const r=await api('GET','/api/geo/cfg');if(!r.ok)return;const c=r.j;$('#gon').checked=c.on;$('#grad').value=c.radius;
  $('#gips').innerHTML=c.ips.map(x=>`<li>${x.ip} (sinds ${x.d}) <button data-ip="${x.ip}" class="gdel">Wis</button></li>`).join('')+(c.ips.length?'':'<li>Nog geen thuisnetwerk opgeslagen.</li>');
  say('#gmsg',(c.lat!=null?'Huislocatie ingesteld. ':'Nog geen huislocatie. ')+'Je huidige netwerk is '+c.me+'.')}
@@ -256,7 +271,7 @@ $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{pa
   const c=await api('GET','/api/ha/config');if(c.ok){if(c.j.url)$('#u').value=c.j.url;if(c.j.tokenSet){say('#ts','Token is opgeslagen op de server.');test()}}
   const g0=await api('GET','/api/google/config');if(g0.ok&&g0.j.idSet)say('#gst','Client-ID en geheim zijn opgeslagen op de server.');
   const t=await api('GET','/api/cf/token');if(t.ok&&t.j.set)say('#cs','Tunneltoken is opgeslagen op de server.');
-  gload();bload();const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
+  gload();bload();ebload();const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
  }else if(me.j.canCreateAdmin){$('#create').hidden=false;$('#who').textContent='Er is nog geen beheerder ingesteld.'}
  else location.href='/';
 })();

@@ -55,6 +55,63 @@ function autoBackup() {
     if (!listBackups().some(b => b.naam.startsWith('huis-' + today) && b.naam.includes('-auto'))) makeBackup('auto');
   } catch (e) { console.error('Back-up mislukt:', e.message); }
 }
+
+// ---- Bank (Enable Banking): automatisch afschriften ophalen ----
+const EB = process.env.EB_BASE || 'https://api.enablebanking.com';
+const bankGet = () => kvGet('bank') || {}, bankPut = o => kvPut('bank', o);
+const b64u = b => Buffer.from(b).toString('base64url');
+function ebJwt(c) {
+  const now = Math.floor(Date.now() / 1000), h = b64u(JSON.stringify({ typ: 'JWT', alg: 'RS256', kid: c.appId })), p = b64u(JSON.stringify({ iss: 'enablebanking.com', aud: 'api.enablebanking.com', iat: now, exp: now + 3600 }));
+  return h + '.' + p + '.' + crypto.sign('RSA-SHA256', Buffer.from(h + '.' + p), c.pem).toString('base64url');
+}
+async function ebCall(c, method, pth, obj) {
+  const r = await fetch(EB + pth, { method, headers: { authorization: 'Bearer ' + ebJwt(c), 'content-type': 'application/json' }, body: obj ? JSON.stringify(obj) : undefined });
+  const txt = await r.text(); let j = {}; try { j = JSON.parse(txt); } catch {}
+  if (!r.ok) throw new Error(String(j.message || j.error || txt || ('HTTP ' + r.status)).slice(0, 200));
+  return j;
+}
+const BR = [[/jumbo|albert heijn|\bah\b|lidl|aldi|plus supermarkt|dirk|picnic|coop|spar\b/i, 'Boodschappen'], [/vattenfall|eneco|essent|ziggo|kpn|odido|t-mobile|vitens|brabant water|gemeente|belasting|verzeker|zilveren kruis|menzis|vgz|cz groep|woonstichting|huur|waterschap/i, 'Vaste lasten'], [/dierenarts|pets place|zooplus|fressnapf|jolo/i, 'Dieren (Jolo, Coco en Mango)'], [/\bns\b|ov-chip|ovpay|shell|tango|\bbp\b|esso|total|q8|parkeer|anwb/i, 'Vervoer'], [/mcdonald|thuisbezorgd|uber eats|restaurant|caf[eé]|bioscoop|pathe|kfc|burger king|domino|netflix|spotify|bol\.com/i, 'Uit eten en plezier'], [/hema|action|praxis|gamma|intratuin|ikea|karwei|hornbach|blokker/i, 'Huis en tuin'], [/zalando|h&m|c&a|primark|zeeman|wibra|we fashion/i, 'Kleding'], [/apotheek|huisarts|tandarts|fysio|ziekenhuis|etos/i, 'Zorg']];
+function catFor(inc, txt, key, rules) {
+  if (rules && rules[key]) return rules[key];
+  if (inc) return /leefgeld|bewind/i.test(txt) ? 'Leefgeld' : /salaris|loon|uwv|svb|uitkering/i.test(txt) ? 'Salaris of uitkering' : 'Overig';
+  const h = BR.find(x => x[0].test(txt)); return h ? h[1] : 'Overig';
+}
+let bankBusy = false;
+async function bankSync() {
+  if (bankBusy) return { err: 'Bezig' }; bankBusy = true;
+  const c = bankGet();
+  try {
+    if (!c.appId || !c.pem || !c.session) return { err: 'Niet gekoppeld' };
+    if (c.session.valid_until && Date.parse(c.session.valid_until) < Date.now()) { c.lastErr = 'De toestemming is verlopen. Koppel de bank opnieuw in Admin.'; bankPut(c); return { err: c.lastErr }; }
+    const from = new Date(Date.now() - (c.lastSync ? 10 : 90) * 864e5).toISOString().slice(0, 10);
+    const b = kvGet('boek') || {}; b.tx = b.tx || []; b.set = b.set || {}; b.set.rules = b.set.rules || {};
+    const have = new Set(b.tx.map(t => t.ref).filter(Boolean)); let added = 0;
+    for (const acc of c.session.accounts || []) {
+      let ck = '', pages = 0;
+      do {
+        const q = '?date_from=' + from + (ck ? '&continuation_key=' + encodeURIComponent(ck) : '');
+        const j = await ebCall(c, 'GET', '/accounts/' + encodeURIComponent(acc.uid) + '/transactions' + q);
+        for (const t of j.transactions || []) {
+          if (t.status && t.status !== 'BOOK') continue;
+          const a = Math.round(Math.abs(parseFloat(t.transaction_amount && t.transaction_amount.amount)) * 100); if (!(a > 0)) continue;
+          const out = t.credit_debit_indicator === 'DBIT', cp = String((out ? t.creditor && t.creditor.name : t.debtor && t.debtor.name) || '').trim(), om = (t.remittance_information || []).join(' ').replace(/\s+/g, ' ').trim();
+          const d = String(t.booking_date || t.value_date || t.transaction_date || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+          const ref = 'eb:' + (t.entry_reference || t.transaction_id || crypto.createHash('sha1').update([acc.uid, d, a, cp, om].join('|')).digest('hex').slice(0, 20));
+          if (have.has(ref)) continue;
+          const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === 'rabo' && x.d === d && x.a === a && x.t === type);
+          const key = (cp || om.slice(0, 30)).toLowerCase();
+          if (man) { man.ref = ref; man.k = key; have.add(ref); continue; }
+          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: (cp && om ? cp + ' – ' + om : cp || om).slice(0, 120), w: '', src: 'rabo', ref, k: key.slice(0, 60), auto: 1, by: 'bank', at: Date.now() });
+          have.add(ref); added++;
+        }
+        ck = j.continuation_key || ''; pages++;
+      } while (ck && pages < 30);
+    }
+    kvPut('boek', b); c.lastSync = Date.now(); c.lastErr = ''; c.lastAdded = added; bankPut(c); return { ok: true, added };
+  } catch (e) { c.lastErr = String(e.message || e).slice(0, 200); bankPut(c); return { err: c.lastErr }; }
+  finally { bankBusy = false; }
+}
+setTimeout(() => { bankSync().catch(() => {}); }, 60e3); setInterval(() => { bankSync().catch(() => {}); }, 4 * 3600e3);
 setTimeout(autoBackup, 5000); setInterval(autoBackup, 30 * 60e3);
 
 const PUB = path.join(__dirname, 'public');
@@ -232,6 +289,43 @@ http.createServer(async (req, res) => {
       }
       return json(res, 404, { error: 'Onbekend' });
     }
+    if (p === '/api/bank/cb' && req.method === 'GET') {
+      const c = bankGet(), st = url.searchParams.get('state') || '', code = url.searchParams.get('code') || '', page = (m, ok) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;background:#0b0b12;color:#f2f2f8;padding:24px"><h2>' + (ok ? 'Bank gekoppeld' : 'Koppelen mislukt') + '</h2><p>' + String(m).replace(/[<>&]/g, '') + '</p><p><a style="color:#a78bfa" href="/">Terug naar het dashboard</a></p>'); };
+      try {
+        if (!c.pending || c.pending.state !== st || Date.now() - c.pending.at > 30 * 60e3) return page('De koppeling is verlopen of onbekend. Begin opnieuw in Admin.', false);
+        if (!code) return page('De bank gaf geen toestemming (' + (url.searchParams.get('error') || 'geen code') + ').', false);
+        const j = await ebCall(c, 'POST', '/sessions', { code });
+        c.session = { id: j.session_id, valid_until: j.access && j.access.valid_until || '', accounts: (j.accounts || []).map(a => ({ uid: a.uid, iban: a.account_id && a.account_id.iban || '' })) }; delete c.pending; c.lastErr = ''; bankPut(c);
+        bankSync().catch(() => {}); return page('Het dashboard haalt nu de afschriften op. Dit kan een minuut duren.', true);
+      } catch (e) { return page(e.message || 'Onbekende fout', false); }
+    }
+    if (p.startsWith('/api/bank/')) {
+      const s = session(req); if (!s || s.role !== 'owner') return json(res, 403, { error: 'Geen toegang' });
+      const c = bankGet();
+      if (p === '/api/bank/status' && req.method === 'GET') return json(res, 200, { configured: !!(c.appId && c.pem), appId: isAdmin(s) ? c.appId || '' : undefined, redirect: c.redirect || '', linked: !!c.session, valid_until: c.session && c.session.valid_until || '', accounts: c.session ? (c.session.accounts || []).length : 0, lastSync: c.lastSync || 0, lastErr: c.lastErr || '', lastAdded: c.lastAdded || 0 });
+      if (p === '/api/bank/sync' && req.method === 'POST') { if (!OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' }); const r = await bankSync(); return json(res, 200, { ...r, boek: kvGet('boek') }); }
+      if (!isAdmin(s)) return json(res, 403, { error: 'Alleen Admin' });
+      if (p === '/api/bank/cfg' && req.method === 'PUT') {
+        const b = JSON.parse(await body(req)), n = { ...c };
+        if (b.appId !== undefined) n.appId = String(b.appId).trim().slice(0, 100);
+        if (b.redirect !== undefined) n.redirect = String(b.redirect).trim().slice(0, 200);
+        if (b.pem) { try { crypto.createPrivateKey(String(b.pem)); } catch { return json(res, 400, { error: 'De sleutel (PEM) is ongeldig.' }); } n.pem = String(b.pem); }
+        bankPut(n); return json(res, 200, { ok: true });
+      }
+      if (p === '/api/bank/start' && req.method === 'POST') {
+        if (!c.appId || !c.pem) return json(res, 400, { error: 'Vul eerst het Application ID en de sleutel in.' });
+        const state = crypto.randomBytes(16).toString('hex'); let last = '';
+        for (const days of [179, 90]) {
+          try {
+            const j = await ebCall(c, 'POST', '/auth', { access: { valid_until: new Date(Date.now() + days * 864e5).toISOString() }, aspsp: { name: 'Rabobank', country: 'NL' }, state, redirect_url: c.redirect || 'https://huis.huizecpvh.nl/api/bank/cb', psu_type: 'personal' });
+            c.pending = { state, at: Date.now() }; bankPut(c); return json(res, 200, { ok: true, url: j.url });
+          } catch (e) { last = e.message; }
+        }
+        return json(res, 502, { error: 'Koppelen starten mislukt: ' + last });
+      }
+      if (p === '/api/bank/unlink' && req.method === 'POST') { delete c.session; bankPut(c); return json(res, 200, { ok: true }); }
+      return json(res, 404, { error: 'Onbekend' });
+    }
     if (p.startsWith('/api/boek')) {
       // Huishoudboekje: alleen Joshua en Lorenzo (niet Admin, niet gasten).
       const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
@@ -246,6 +340,11 @@ http.createServer(async (req, res) => {
         const x = { id: 'b' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c: String(t.c || '').slice(0, 60), n: String(t.n || '').slice(0, 200), w: String(t.w || '').slice(0, 30), src: ['contant', 'rabo', 'anders'].includes(t.src) ? t.src : 'contant', by: s.ref, at: Date.now() };
         if (typeof b.bon === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.bon) && b.bon.length < 3e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
         const d = bk(); d.tx.push(x); save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/tx' && req.method === 'PUT') {
+        const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
+        const c = String(b.c || '').trim().slice(0, 60); if (!c) return json(res, 400, { error: 'Kies een categorie.' });
+        t.c = c; delete t.auto; d.set.rules = d.set.rules || {}; if (t.k) d.set.rules[t.k] = c; save(d); return json(res, 200, { ok: true, ...d });
       }
       if (p === '/api/boek/tx' && req.method === 'DELETE') {
         const id = String(url.searchParams.get('id') || ''), d = bk(), n = d.tx.length;
