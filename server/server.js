@@ -77,6 +77,16 @@ function catFor(inc, txt, key, rules) {
   if (inc) return /leefgeld|bewind/i.test(txt) ? 'Leefgeld' : /salaris|loon|uwv|svb|uitkering/i.test(txt) ? 'Salaris of uitkering' : 'Overig';
   const h = BR.find(x => x[0].test(txt)); return h ? h[1] : 'Overig';
 }
+function cleanDesc(cp, om) {
+  om = String(om || '').replace(/\s*(Kaartnr|Pasvolgnr|Apple Pay|Google Pay|Transactie|Betaalautomaat)\b.*$/i, '').replace(/\s+/g, ' ').trim();
+  if (cp && om.toLowerCase().startsWith(cp.toLowerCase())) om = om.slice(cp.length).trim();
+  return (cp && om ? cp + ' – ' + om : cp || om).slice(0, 120);
+}
+function cleanOld(n) {
+  n = String(n || '').replace(/\s*Kaartnr:.*$/i, '').replace(/\s+/g, ' ').trim(); const m = n.match(/^(.+?) – (.*)$/);
+  if (m && m[2].toLowerCase().startsWith(m[1].toLowerCase())) { const r = m[2].slice(m[1].length).trim(); n = m[1] + (r ? ' – ' + r : ''); }
+  return n;
+}
 let bankBusy = false;
 async function bankSync() {
   if (bankBusy) return { err: 'Bezig' }; bankBusy = true;
@@ -84,6 +94,7 @@ async function bankSync() {
   try {
     if (!c.appId || !c.pem || !c.sessions.length) return { err: 'Niet gekoppeld' };
     const b = kvGet('boek') || {}; b.tx = b.tx || []; b.set = b.set || {}; b.set.rules = b.set.rules || {};
+    b.tx.forEach(t => { if (t.auto && t.n) t.n = cleanOld(t.n); });
     const have = new Set(b.tx.map(t => t.ref).filter(Boolean)); let added = 0;
     const errs = [];
     for (const sess of c.sessions) {
@@ -106,7 +117,7 @@ async function bankSync() {
           const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === bsrc && x.d === d && x.a === a && x.t === type);
           const key = (cp || om.slice(0, 30)).toLowerCase();
           if (man) { man.ref = ref; man.k = key; have.add(ref); continue; }
-          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: (cp && om ? cp + ' – ' + om : cp || om).slice(0, 120), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, by: 'bank', at: Date.now() });
+          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, by: 'bank', at: Date.now() });
           have.add(ref); added++;
         }
         ck = j.continuation_key || ''; pages++;
