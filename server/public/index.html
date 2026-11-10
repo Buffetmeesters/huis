@@ -877,6 +877,8 @@ if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.statu
 render();
 if(!fromSrv)save();
 setInterval(()=>{const c=document.getElementById('skyclock');if(c)c.textContent=hm(new Date())},5000);applySky();setInterval(()=>{applySky();if(S.view==='overzicht'||S.view==='home'&&!S.rm)render()},60000);(()=>{try{const gp=new URLSearchParams(location.search).get('google');if(gp){const m={ok:'Google Agenda is gekoppeld.',geweigerd:'Koppelen is geannuleerd.',verlopen:'De koppeling duurde te lang. Probeer het opnieuw.',geenrefresh:'Google gaf geen blijvende toestemming. Probeer het nog eens.',fout:'Koppelen is mislukt.'};S.view='agenda';history.replaceState(null,'','/');setTimeout(()=>{render();toast(m[gp]||'Klaar');loadGoogle(true)},600)}}catch(e){}})();
+let SYNCING=0;async function syncData(){if(SYNCING||document.hidden)return;SYNCING=1;try{const r=await fetch('/api/state/data');if(r.status!==200)return;const j=await r.json(),ae=document.activeElement;let ch=0;for(const k of['tasks','shop','afval','log']){if(Array.isArray(j[k])&&JSON.stringify(j[k])!==JSON.stringify(D[k])){D[k]=j[k];ch=1}}if(ch){if(!GUEST)try{localStorage.setItem('huis-d2',JSON.stringify(D))}catch(e){}resetDue();if(!(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)))render()}}catch(e){}finally{SYNCING=0}}
+setInterval(syncData,15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncData()});
 pollLights(true);setInterval(pollLights,4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLights(true)});
 })();
 </script>
