@@ -58,7 +58,8 @@ function autoBackup() {
 
 // ---- Bank (Enable Banking): automatisch afschriften ophalen ----
 const EB = process.env.EB_BASE || 'https://api.enablebanking.com';
-const bankGet = () => kvGet('bank') || {}, bankPut = o => kvPut('bank', o);
+const BANKS = { rabo: { name: 'Rabobank', src: 'rabo' }, ing: { name: 'ING', src: 'ing' } };
+const bankGet = () => { const c = kvGet('bank') || {}; if (c.session && !c.sessions) { c.sessions = [{ ...c.session, bank: 'rabo' }]; delete c.session; } c.sessions = c.sessions || []; return c; }, bankPut = o => kvPut('bank', o);
 const b64u = b => Buffer.from(b).toString('base64url');
 function ebJwt(c) {
   const now = Math.floor(Date.now() / 1000), h = b64u(JSON.stringify({ typ: 'JWT', alg: 'RS256', kid: c.appId })), p = b64u(JSON.stringify({ iss: 'enablebanking.com', aud: 'api.enablebanking.com', iat: now, exp: now + 3600 }));
@@ -81,12 +82,16 @@ async function bankSync() {
   if (bankBusy) return { err: 'Bezig' }; bankBusy = true;
   const c = bankGet();
   try {
-    if (!c.appId || !c.pem || !c.session) return { err: 'Niet gekoppeld' };
-    if (c.session.valid_until && Date.parse(c.session.valid_until) < Date.now()) { c.lastErr = 'De toestemming is verlopen. Koppel de bank opnieuw in Admin.'; bankPut(c); return { err: c.lastErr }; }
-    const from = new Date(Date.now() - (c.lastSync ? 10 : 90) * 864e5).toISOString().slice(0, 10);
+    if (!c.appId || !c.pem || !c.sessions.length) return { err: 'Niet gekoppeld' };
     const b = kvGet('boek') || {}; b.tx = b.tx || []; b.set = b.set || {}; b.set.rules = b.set.rules || {};
     const have = new Set(b.tx.map(t => t.ref).filter(Boolean)); let added = 0;
-    for (const acc of c.session.accounts || []) {
+    const errs = [];
+    for (const sess of c.sessions) {
+     const bn = (BANKS[sess.bank] || {}).name || sess.bank, bsrc = (BANKS[sess.bank] || {}).src || 'anders';
+     if (sess.valid_until && Date.parse(sess.valid_until) < Date.now()) { errs.push(bn + ': toestemming verlopen, koppel opnieuw in Admin'); continue; }
+     const from = new Date(Date.now() - (sess.synced ? 10 : 90) * 864e5).toISOString().slice(0, 10);
+     try {
+     for (const acc of sess.accounts || []) {
       let ck = '', pages = 0;
       do {
         const q = '?date_from=' + from + (ck ? '&continuation_key=' + encodeURIComponent(ck) : '');
@@ -98,16 +103,19 @@ async function bankSync() {
           const d = String(t.booking_date || t.value_date || t.transaction_date || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
           const ref = 'eb:' + (t.entry_reference || t.transaction_id || crypto.createHash('sha1').update([acc.uid, d, a, cp, om].join('|')).digest('hex').slice(0, 20));
           if (have.has(ref)) continue;
-          const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === 'rabo' && x.d === d && x.a === a && x.t === type);
+          const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === bsrc && x.d === d && x.a === a && x.t === type);
           const key = (cp || om.slice(0, 30)).toLowerCase();
           if (man) { man.ref = ref; man.k = key; have.add(ref); continue; }
-          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: (cp && om ? cp + ' – ' + om : cp || om).slice(0, 120), w: '', src: 'rabo', ref, k: key.slice(0, 60), auto: 1, by: 'bank', at: Date.now() });
+          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: (cp && om ? cp + ' – ' + om : cp || om).slice(0, 120), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, by: 'bank', at: Date.now() });
           have.add(ref); added++;
         }
         ck = j.continuation_key || ''; pages++;
       } while (ck && pages < 30);
+     }
+     sess.synced = 1;
+     } catch (e) { errs.push(bn + ': ' + String(e.message || e).slice(0, 120)); }
     }
-    kvPut('boek', b); c.lastSync = Date.now(); c.lastErr = ''; c.lastAdded = added; bankPut(c); return { ok: true, added };
+    kvPut('boek', b); c.lastSync = Date.now(); c.lastErr = errs.join('. '); c.lastAdded = added; bankPut(c); return errs.length ? { ok: true, added, err: c.lastErr } : { ok: true, added };
   } catch (e) { c.lastErr = String(e.message || e).slice(0, 200); bankPut(c); return { err: c.lastErr }; }
   finally { bankBusy = false; }
 }
@@ -295,14 +303,14 @@ http.createServer(async (req, res) => {
         if (!c.pending || c.pending.state !== st || Date.now() - c.pending.at > 30 * 60e3) return page('De koppeling is verlopen of onbekend. Begin opnieuw in Admin.', false);
         if (!code) return page('De bank gaf geen toestemming (' + (url.searchParams.get('error') || 'geen code') + ').', false);
         const j = await ebCall(c, 'POST', '/sessions', { code });
-        c.session = { id: j.session_id, valid_until: j.access && j.access.valid_until || '', accounts: (j.accounts || []).map(a => ({ uid: a.uid, iban: a.account_id && a.account_id.iban || '' })) }; delete c.pending; c.lastErr = ''; bankPut(c);
+        const bank = c.pending.bank in BANKS ? c.pending.bank : 'rabo'; c.sessions = c.sessions.filter(x => x.bank !== bank); c.sessions.push({ bank, id: j.session_id, valid_until: j.access && j.access.valid_until || '', accounts: (j.accounts || []).map(a => ({ uid: a.uid, iban: a.account_id && a.account_id.iban || '' })) }); delete c.pending; c.lastErr = ''; bankPut(c);
         bankSync().catch(() => {}); return page('Het dashboard haalt nu de afschriften op. Dit kan een minuut duren.', true);
       } catch (e) { return page(e.message || 'Onbekende fout', false); }
     }
     if (p.startsWith('/api/bank/')) {
       const s = session(req); if (!s || s.role !== 'owner') return json(res, 403, { error: 'Geen toegang' });
       const c = bankGet();
-      if (p === '/api/bank/status' && req.method === 'GET') return json(res, 200, { configured: !!(c.appId && c.pem), appId: isAdmin(s) ? c.appId || '' : undefined, redirect: c.redirect || '', linked: !!c.session, valid_until: c.session && c.session.valid_until || '', accounts: c.session ? (c.session.accounts || []).length : 0, lastSync: c.lastSync || 0, lastErr: c.lastErr || '', lastAdded: c.lastAdded || 0 });
+      if (p === '/api/bank/status' && req.method === 'GET') return json(res, 200, { configured: !!(c.appId && c.pem), appId: isAdmin(s) ? c.appId || '' : undefined, redirect: c.redirect || '', linked: c.sessions.length > 0, sessions: c.sessions.map(x => ({ bank: x.bank, name: (BANKS[x.bank] || {}).name || x.bank, valid_until: x.valid_until || '', accounts: (x.accounts || []).length })), lastSync: c.lastSync || 0, lastErr: c.lastErr || '', lastAdded: c.lastAdded || 0 });
       if (p === '/api/bank/sync' && req.method === 'POST') { if (!OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' }); const r = await bankSync(); return json(res, 200, { ...r, boek: kvGet('boek') }); }
       if (!isAdmin(s)) return json(res, 403, { error: 'Alleen Admin' });
       if (p === '/api/bank/cfg' && req.method === 'PUT') {
@@ -314,16 +322,16 @@ http.createServer(async (req, res) => {
       }
       if (p === '/api/bank/start' && req.method === 'POST') {
         if (!c.appId || !c.pem) return json(res, 400, { error: 'Vul eerst het Application ID en de sleutel in.' });
-        const state = crypto.randomBytes(16).toString('hex'); let last = '';
+        const bq = JSON.parse((await body(req)) || '{}'), bkey = bq.bank in BANKS ? bq.bank : 'rabo', bkx = BANKS[bkey], state = crypto.randomBytes(16).toString('hex'); let last = '';
         for (const days of [179, 90]) {
           try {
-            const j = await ebCall(c, 'POST', '/auth', { access: { valid_until: new Date(Date.now() + days * 864e5).toISOString() }, aspsp: { name: 'Rabobank', country: 'NL' }, state, redirect_url: c.redirect || 'https://huis.huizecpvh.nl/api/bank/cb', psu_type: 'personal' });
-            c.pending = { state, at: Date.now() }; bankPut(c); return json(res, 200, { ok: true, url: j.url });
+            const j = await ebCall(c, 'POST', '/auth', { access: { valid_until: new Date(Date.now() + days * 864e5).toISOString() }, aspsp: { name: bkx.name, country: 'NL' }, state, redirect_url: c.redirect || 'https://huis.huizecpvh.nl/api/bank/cb', psu_type: 'personal' });
+            c.pending = { state, at: Date.now(), bank: bkey }; bankPut(c); return json(res, 200, { ok: true, url: j.url });
           } catch (e) { last = e.message; }
         }
         return json(res, 502, { error: 'Koppelen starten mislukt: ' + last });
       }
-      if (p === '/api/bank/unlink' && req.method === 'POST') { delete c.session; bankPut(c); return json(res, 200, { ok: true }); }
+      if (p === '/api/bank/unlink' && req.method === 'POST') { const ub = JSON.parse((await body(req)) || '{}').bank; c.sessions = c.sessions.filter(x => x.bank !== ub); bankPut(c); return json(res, 200, { ok: true }); }
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/boek')) {
@@ -337,7 +345,7 @@ http.createServer(async (req, res) => {
         const b = JSON.parse(await body(req)), t = b.tx || {};
         const a = Math.round(+t.a); if (!(a > 0) || a > 1e9) return json(res, 400, { error: 'Vul een bedrag in.' });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) return json(res, 400, { error: 'Datum klopt niet.' });
-        const x = { id: 'b' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c: String(t.c || '').slice(0, 60), n: String(t.n || '').slice(0, 200), w: String(t.w || '').slice(0, 30), src: ['contant', 'rabo', 'anders'].includes(t.src) ? t.src : 'contant', by: s.ref, at: Date.now() };
+        const x = { id: 'b' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c: String(t.c || '').slice(0, 60), n: String(t.n || '').slice(0, 200), w: String(t.w || '').slice(0, 30), src: ['contant', 'rabo', 'ing', 'anders'].includes(t.src) ? t.src : 'contant', by: s.ref, at: Date.now() };
         if (typeof b.bon === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.bon) && b.bon.length < 3e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
         const d = bk(); d.tx.push(x); save(d); return json(res, 200, { ok: true, ...d });
       }

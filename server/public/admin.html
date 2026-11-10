@@ -110,7 +110,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <label for="ebid">Application ID</label><input id="ebid" autocomplete="off">
    <label for="ebpem">Sleutelbestand (.pem)</label><input id="ebpem" type="file" accept=".pem,.key,text/plain">
    <label for="ebred">Terugkeer-adres (alleen aanpassen als je het anders hebt ingesteld)</label><input id="ebred" placeholder="https://huis.huizecpvh.nl/api/bank/cb">
-   <button id="ebsave">Opslaan</button> <button id="ebgo">Rabobank koppelen</button> <button id="ebun">Ontkoppelen</button>
+   <button id="ebsave">Opslaan</button> <button id="ebgo">Rabobank koppelen</button> <button id="ebing">ING koppelen</button> <button id="ebun">Rabobank ontkoppelen</button> <button id="ebuning">ING ontkoppelen</button>
    <p id="ebmsg" role="status"></p><p id="ebst"></p>
    <p>Bij het koppelen log je in met de Rabo Bankieren-app en geef je toestemming voor alleen-lezen inzage. Die toestemming loopt na enkele maanden af; dan moet je hier opnieuw koppelen.</p>
   </div>
@@ -241,10 +241,12 @@ async function sload(){
 async function bload(){const r=await api('GET','/api/backup/list');if(!r.ok)return;
  $('#blist').innerHTML=r.j.files.map(f=>`<li><a href="/api/backup/download?f=${encodeURIComponent(f.naam)}">${f.naam}</a> · ${f.kb} KB · ${new Date(f.tijd).toLocaleString('nl-NL')}</li>`).join('')||'<li>Nog geen back-ups.</li>'}
 $('#bnow').onclick=async()=>{say('#bmsg','Bezig…');const r=await api('POST','/api/backup/now');say('#bmsg',r.ok?'Back-up gemaakt: '+r.j.naam:(r.j.error||'Mislukt'),r.ok?'ok':'err');bload()};
-async function ebload(){const r=await api('GET','/api/bank/status');if(!r.ok)return;const c=r.j;$('#ebid').value=c.appId||'';$('#ebred').value=c.redirect||'';$('#ebst').textContent=(c.configured?'Sleutel ingesteld. ':'Nog geen sleutel. ')+(c.linked?'Gekoppeld ('+c.accounts+' rekening(en)), toestemming tot '+(c.valid_until?new Date(c.valid_until).toLocaleDateString('nl-NL'):'onbekend')+'. Laatste keer opgehaald: '+(c.lastSync?new Date(c.lastSync).toLocaleString('nl-NL'):'nog niet')+(c.lastErr?'. Fout: '+c.lastErr:'.'):'Nog niet gekoppeld.')}
+async function ebload(){const r=await api('GET','/api/bank/status');if(!r.ok)return;const c=r.j;$('#ebid').value=c.appId||'';$('#ebred').value=c.redirect||'';$('#ebst').textContent=(c.configured?'Sleutel ingesteld. ':'Nog geen sleutel. ')+(c.linked?'Gekoppeld: '+c.sessions.map(x=>x.name+' ('+x.accounts+' rekening(en), toestemming tot '+(x.valid_until?new Date(x.valid_until).toLocaleDateString('nl-NL'):'onbekend')+')').join(', ')+'. Laatste keer opgehaald: '+(c.lastSync?new Date(c.lastSync).toLocaleString('nl-NL'):'nog niet')+(c.lastErr?'. Fout: '+c.lastErr:'.'):'Nog niet gekoppeld.')}
 $('#ebsave').onclick=async()=>{const f=$('#ebpem').files[0],b={appId:$('#ebid').value,redirect:$('#ebred').value};if(f)b.pem=await f.text();const r=await api('PUT','/api/bank/cfg',b);say('#ebmsg',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');ebload()};
-$('#ebgo').onclick=async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/api/bank/start');if(r.ok&&r.j.url)location.href=r.j.url;else say('#ebmsg',r.j.error||'Mislukt','err')};
-$('#ebun').onclick=async()=>{if(!confirm('Bank ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink');ebload()};
+const ebgo=bank=>async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/api/bank/start',{bank});if(r.ok&&r.j.url)location.href=r.j.url;else say('#ebmsg',r.j.error||'Mislukt','err')};
+$('#ebgo').onclick=ebgo('rabo');$('#ebing').onclick=ebgo('ing');
+const ebun=(bank,n)=>async()=>{if(!confirm(n+' ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink',{bank});ebload()};
+$('#ebun').onclick=ebun('rabo','Rabobank');$('#ebuning').onclick=ebun('ing','ING');
 async function gload(){const r=await api('GET','/api/geo/cfg');if(!r.ok)return;const c=r.j;$('#gon').checked=c.on;$('#grad').value=c.radius;
  $('#gips').innerHTML=c.ips.map(x=>`<li>${x.ip} (sinds ${x.d}) <button data-ip="${x.ip}" class="gdel">Wis</button></li>`).join('')+(c.ips.length?'':'<li>Nog geen thuisnetwerk opgeslagen.</li>');
  say('#gmsg',(c.lat!=null?'Huislocatie ingesteld. ':'Nog geen huislocatie. ')+'Je huidige netwerk is '+c.me+'.')}
