@@ -306,7 +306,7 @@ const can=(k,id)=>S.role==='owner'||!!(RP(id)&&RP(id)[k]);
 Object.defineProperty(S,'clim',{get(){const r=cur();return r.c||(r.c={set:21,air:false})}});
 const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(RP(r.id)).some(Boolean));
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
-const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
+const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><button class="chip" data-act="toowner">‹ Terug naar eigenaar</button><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let GUEST=false,HAL=[],HAM=[],HAC=[];
 const LAST={};const i0=t=>+t.dataset.i;
@@ -332,7 +332,7 @@ function pushAll(){S.rooms.forEach(r=>r.lights.forEach((l,i)=>{if(!l.e)return;co
 let polling=false;
 let GON=false,ADM='';
 let MEI=null;
-function guestUI(){const adm=!!(MEI&&MEI.admin&&!GUEST),sg=document.querySelector('.seg'),w=document.getElementById('welkom');if(sg)sg.style.display=adm?'':'none';if(w){w.style.display=MEI&&!GUEST?'':'none';w.textContent=MEI&&MEI.name?'Welkom '+MEI.name:''}if(!adm&&S.role==='guest'&&!GUEST){S.role='owner'}}
+function guestUI(){const adm=!!(MEI&&MEI.admin&&!GUEST),sg=document.querySelector('.seg'),w=document.getElementById('welkom');if(sg)sg.style.display=adm?'':'none';if(w){w.style.display=MEI&&!GUEST?'':'none';w.textContent=MEI&&MEI.name?'Welkom '+MEI.name:''}}
 async function gtoggle(){try{const r=await fetch('/api/guests/enabled',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({on:!GON})});const j=await r.json();if(!r.ok){toast(j.error||'Mislukt');return}GON=!!j.on;guestUI();toast(GON?'Gasttoegang staat aan':'Gasttoegang staat uit')}catch(e){toast('Geen verbinding met de server')}render()}
 const fmtM=ms=>ms?new Date(ms).toLocaleString('nl-NL',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'onbekend';
 async function loadDev(){S.devBusy=true;try{const r=await fetch('/api/sessions');const j=await r.json();S.dev=r.ok?j.sessions:[]}catch(e){S.dev=[]}S.devBusy=false;if(S.view==='apparaten')render()}
@@ -594,7 +594,9 @@ notities(){
  D.notes.forEach((n,i)=>{h+=`<details class="card item" ${S.on===n.id?'open':''}><summary class="name">${esc(n.t)} <span class="state">${esc(nm(n))}</span></summary><p style="white-space:pre-line">${esc(n.x)}</p><div class="state">Zichtbaar voor</div><div class="chips">${D.guests.map(g=>`<button class="chip" data-act="nvis" data-i="${i}" data-k="${g.id}" aria-pressed="${n.to.includes(g.id)}">${esc(g.n)}</button>`).join('')}</div><div class="mini"><button class="btn alt" data-act="ndel" data-i="${i}">Verwijder notitie</button></div></details>`});
  if(!D.notes.length)h+='<p class="state">Nog geen notities.</p>';
  return h+`<h2>Notitie toevoegen</h2><div class="card form"><input id="nt" placeholder="Titel" value="${esc(S.nt||'')}"><textarea id="nx" rows="4" placeholder="Wat wil je delen?">${esc(S.nx||'')}</textarea><div class="state">Zichtbaar voor</div><div class="chips">${D.guests.map(g=>`<button class="chip" data-act="nsel" data-k="${g.id}" aria-pressed="${(S.ns||[]).includes(g.id)}">${esc(g.n)}</button>`).join('')}</div><button class="btn" data-act="nadd">Notitie opslaan</button></div>`},
-gasten(){let h=`<h2>Gasttoegang</h2><div class="card row"><div><div class="name">Gasttoegang staat ${GON?'aan':'uit'}</div><div class="state">${GON?'Gasten kunnen met hun code inloggen en zien alleen wat jullie toestaan.':'Niemand behalve Joshua en Lorenzo kan inloggen. Zet aan om gasten of logees toegang te geven.'}</div></div><button class="btn ${GON?'alt':''}" data-act="gton">${GON?'Uitzetten':'Aanzetten'}</button></div>`;
+gasten(){const gl=(D.guests||[]).filter(g=>!exp(g));
+ let h=`<div class="ovg" style="gap:12px"><div><h2>Gasttoegang</h2><div class="card row"><div><div class="name">Gasttoegang staat ${GON?'aan':'uit'}</div><div class="state">${GON?'Gasten kunnen met hun code inloggen en zien alleen wat jullie toestaan.':'Niemand behalve Joshua en Lorenzo kan inloggen. Zet aan om gasten of logees toegang te geven.'}</div></div><button class="btn ${GON?'alt':''}" data-act="gton">${GON?'Uitzetten':'Aanzetten'}</button></div></div>`+
+ `<div><h2>Bekijken als gast</h2><div class="card"><div class="state">Zie het dashboard zoals een gast het ziet.</div>${gl.length?gl.map(g=>`<div class="row" style="margin-top:10px"><span class="name">${esc(g.n)}</span><button class="btn alt" data-act="gview" data-k="${g.id}">Bekijk</button></div>`).join(''):'<div class="state" style="margin-top:8px">Er is nog geen gast. Voeg er een toe zodra gasttoegang aanstaat.</div>'}</div></div></div>`;
  if(!GON)return h;
  h+=`<h2>Gasten en logees</h2><p class="state">Beheerders: Joshua en Lorenzo. Gasten zien nooit camera’s, deurbel, deursensoren, systeem of cloud.</p>`;
  const P=[['licht','Lampen'],['sfeer','Sfeer'],['muziek','Muziek'],['klimaat','Temperatuur en airco'],['film','Film kijken']];
@@ -769,6 +771,8 @@ document.addEventListener('click',e=>{
  if(a==='air')S.clim.air=!S.clim.air;
  if(a==='film'){filmToggle();return}
  if(a==='gton'){gtoggle();return}
+ if(a==='gview'){S.role='guest';S.pg=t.dataset.k;S.view='home';S.fl=null;S.rm=0;render();return}
+ if(a==='toowner'){S.role='owner';S.view='gasten';render();return}
  if(a==='dvdel'){dvDel(t.dataset.id);return}
  if(a==='dvall'){dvAll();return}
  if(a==='spk'){const sp=S.spk||HAM.map(x=>x.id),k=sp.indexOf(t.dataset.e);S.say=(document.getElementById('say')||{}).value||S.say;k<0?sp.push(t.dataset.e):sp.splice(k,1);S.spk=sp;render();return}
