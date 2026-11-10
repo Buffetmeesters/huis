@@ -452,7 +452,7 @@ http.createServer(async (req, res) => {
           if (!(a > 0) || a > 1e9 || !/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) { skip++; continue; }
           if (ref && have.has(ref)) { skip++; continue; }
           const c = String(t.c || '').slice(0, 60), nm = String(t.n || '').slice(0, 200);
-          const kk = String(t.k || '').toLowerCase().slice(0, 60); d.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c, n: nm, w: '', src: 'rabo', ref, k: kk || undefined, x: (kk && d.set.skipK && d.set.skipK[kk]) || /spaar/i.test(nm) ? 1 : undefined, by: s.ref, at: Date.now() });
+          const kk = String(t.k || '').toLowerCase().slice(0, 60); d.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c, n: nm, w: '', src: 'rabo', ref, k: kk || undefined, l: (kk && d.set.loanK && d.loans.some(l => l.id === d.set.loanK[kk + '|' + (t.t === 'in' ? 'in' : 'uit')])) ? d.set.loanK[kk + '|' + (t.t === 'in' ? 'in' : 'uit')] : undefined, x: (kk && d.set.skipK && d.set.skipK[kk]) || /spaar/i.test(nm) ? 1 : undefined, by: s.ref, at: Date.now() });
           if (ref) have.add(ref); n++;
           const key = String(t.k || '').toLowerCase().slice(0, 60); if (key && c) d.set.rules[key] = c;
         }
