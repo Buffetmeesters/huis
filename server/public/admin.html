@@ -159,10 +159,10 @@ const SOORT={motion:'Beweging',temperature:'Temperatuur',illuminance:'Licht',bat
 let SD=null;
 function sdraw(){
  if(!SD)return;
- const mo=SD.items.filter(x=>x.soort==='motion'&&!/^binary_sensor\..*_\d+$/.test(x.id)||x.soort==='motion');
+ const mo=SD.items.filter(x=>x.soort==='motion').sort((p,q)=>(q.sib||[]).length-(p.sib||[]).length||p.naam.localeCompare(q.naam));const SN={t:'temp',lx:'licht',bat:'batterij'};
  const by=Object.fromEntries(SD.items.map(x=>[x.id,x]));
  $('#slink').innerHTML=SD.rooms.map(r=>{const l=SD.links[r.id]||{};
-  const opts='<option value="">Geen sensor</option>'+mo.map(x=>`<option value="${esc(x.id)}" ${l.m===x.id?'selected':''}>${esc(x.naam)} (${esc(x.id)})</option>`).join('');
+  const opts='<option value="">Geen sensor</option>'+mo.map(x=>`<option value="${esc(x.id)}" ${l.m===x.id?'selected':''}>${esc(x.naam)} · ${(x.sib||[]).length?(x.sib.length===3?'✔ ':'')+(x.sib.map(k=>SN[k]).join(', ')):'alleen beweging'} · ${esc(x.id.replace('binary_sensor.',''))}</option>`).join('');
   const info=l.m?['m','t','lx','bat'].map(k=>{const e=l[k]&&by[l[k]];return e?`${k==='m'?'Beweging':SOORT[{t:'temperature',lx:'illuminance',bat:'battery'}[k]]}: ${esc(e.staat)}${e.eenheid?' '+esc(e.eenheid):''}`:null}).filter(Boolean).join(' · '):'';
   return `<div style="margin:10px 0"><label>${esc(r.naam)}</label><select data-r="${esc(r.id)}" class="srm">${opts}</select><small style="color:var(--mute)">${info}</small></div>`}).join('');
  $('#slist').innerHTML=SD.items.map(x=>`<li><span>${esc(x.naam)}<br><small style="color:var(--mute)">${esc(x.id)} · ${SOORT[x.soort]}${x.klasse?' · '+esc(x.klasse):''}</small></span><span>${esc(x.staat)}${x.eenheid?' '+esc(x.eenheid):''}</span></li>`).join('');

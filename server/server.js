@@ -602,6 +602,7 @@ http.createServer(async (req, res) => {
           const list = all.map(e => ({ e, k: kind(e) })).filter(x => x.k);
           const items = list.map(({ e, k }) => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, soort: k, staat: e.state, eenheid: e.attributes.unit_of_measurement || '', wijzig: e.last_changed, klasse: e.attributes.device_class || '' }));
           const base = id => id.split('.')[1].replace(/_(beweging|motion|temperatuur|temperature|lichtniveau|licht|illuminance|batterij|battery)(_\d+)?$/, '');
+          for (const it of items) if (it.soort === 'motion') { const bs = base(it.id); it.sib = [['t', 'temperature'], ['lx', 'illuminance'], ['bat', 'battery']].filter(([, kd]) => list.some(x => x.k === kd && x.e.entity_id.startsWith('sensor.') && base(x.e.entity_id) === bs)).map(([k]) => k); }
           const links = kvGet('sensors') || {};
           if (req.method === 'PUT') {
             const b = JSON.parse(await body(req));
