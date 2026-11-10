@@ -252,6 +252,21 @@ http.createServer(async (req, res) => {
         d.tx = d.tx.filter(x => x.id !== id); if (d.tx.length === n) return json(res, 404, { error: 'Niet gevonden' });
         try { kvDel('bon:' + id); } catch {} save(d); return json(res, 200, { ok: true, ...d });
       }
+      if (p === '/api/boek/import' && req.method === 'POST') {
+        const b = JSON.parse(await body(req)), d = bk(), have = new Set(d.tx.map(t => t.ref).filter(Boolean)); let n = 0, skip = 0;
+        d.set.rules = d.set.rules || {};
+        for (const t of (Array.isArray(b.items) ? b.items : []).slice(0, 2000)) {
+          const a = Math.round(+t.a), ref = String(t.ref || '').slice(0, 120);
+          if (!(a > 0) || a > 1e9 || !/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) { skip++; continue; }
+          if (ref && have.has(ref)) { skip++; continue; }
+          const c = String(t.c || '').slice(0, 60), nm = String(t.n || '').slice(0, 200);
+          d.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c, n: nm, w: '', src: 'rabo', ref, by: s.ref, at: Date.now() });
+          if (ref) have.add(ref); n++;
+          const key = String(t.k || '').toLowerCase().slice(0, 60); if (key && c) d.set.rules[key] = c;
+        }
+        if (Object.keys(d.set.rules).length > 500) d.set.rules = Object.fromEntries(Object.entries(d.set.rules).slice(-500));
+        save(d); return json(res, 200, { ok: true, added: n, skipped: skip, ...d });
+      }
       if (p === '/api/boek/bon' && req.method === 'GET') { const r = kvGet('bon:' + String(url.searchParams.get('id') || '')); return r ? json(res, 200, r) : json(res, 404, { error: 'Geen bonnetje' }); }
       if (p === '/api/boek/set' && req.method === 'PUT') {
         const b = JSON.parse(await body(req)), d = bk();
