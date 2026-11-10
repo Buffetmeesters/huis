@@ -559,7 +559,7 @@ http.createServer(async (req, res) => {
               const cl = await gApi(who, 'GET', '/users/me/calendarList?minAccessRole=reader&maxResults=50');
               const cals = (cl.items || []).filter(c => c.selected !== false && !/#(holiday|contacts)@group\.v\.calendar\.google\.com$/.test(c.id)).slice(0, 8);
               for (const c of cals) {
-                if (!calsAll.has(c.id)) calsAll.set(c.id, { id: c.id, name: c.summaryOverride || c.summary || c.id, color: c.backgroundColor || '' });
+                if (!calsAll.has(c.id)) calsAll.set(c.id, { id: c.id, name: c.summaryOverride || c.summary || c.id, color: c.backgroundColor || '', role: c.accessRole || '' });
                 const ev = await gApi(who, 'GET', '/calendars/' + encodeURIComponent(c.id) + '/events?' + new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: '100', timeMin: from + 'T00:00:00Z', timeMax: to + 'T23:59:59Z' }).toString());
                 for (const e of ev.items || []) {
                   if (e.status === 'cancelled') continue;
@@ -597,7 +597,8 @@ http.createServer(async (req, res) => {
           }
           if (b.loc) ev.location = String(b.loc).slice(0, 200);
           if (b.wie) ev.extendedProperties = { private: { wie: String(b.wie).slice(0, 40) } };
-          await gApi(who, 'POST', '/calendars/primary/events', ev);
+          const cal = /^[\w.@#\-]{3,200}$/.test(String(b.cal || '')) ? String(b.cal) : 'primary';
+          await gApi(who, 'POST', '/calendars/' + encodeURIComponent(cal) + '/events', ev);
           return json(res, 200, { ok: true });
         }
         if (p === '/api/agenda/wie' && req.method === 'POST') {
