@@ -630,6 +630,9 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
+    const ICONS = { '/favicon.svg': ['favicon.svg', 'image/svg+xml'], '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'], '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'] };
+    if (ICONS[p]) { res.writeHead(200, { 'content-type': ICONS[p][1], 'cache-control': 'public, max-age=86400' }); return fs.createReadStream(path.join(PUB, ICONS[p][0])).pipe(res); }
+    if (p === '/manifest.webmanifest') { res.writeHead(200, { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=3600' }); return res.end(JSON.stringify({ name: 'Huis CPvH', short_name: 'Huis', start_url: '/', display: 'standalone', background_color: '#000000', theme_color: '#1b2748', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }] })); }
     if (p === '/privacy') return file(res, 'privacy.html', 'text/html; charset=utf-8');
     if (p === '/admin') {
       const s = session(req);
