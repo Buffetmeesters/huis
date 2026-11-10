@@ -362,12 +362,12 @@ http.createServer(async (req, res) => {
         const a = Math.round(+t.a); if (!(a > 0) || a > 1e9) return json(res, 400, { error: 'Vul een bedrag in.' });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) return json(res, 400, { error: 'Datum klopt niet.' });
         const x = { id: 'b' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c: String(t.c || '').slice(0, 60), n: String(t.n || '').slice(0, 200), w: String(t.w || '').slice(0, 30), src: ['contant', 'rabo', 'ing', 'anders'].includes(t.src) ? t.src : 'contant', by: s.ref, at: Date.now() };
-        if (typeof b.bon === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.bon) && b.bon.length < 3e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
+        if (typeof b.bon === 'string' && /^data:(image\/(jpeg|png|webp)|application\/pdf);base64,/.test(b.bon) && b.bon.length < 8e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
         const d = bk(); d.tx.push(x); save(d); return json(res, 200, { ok: true, ...d });
       }
       if (p === '/api/boek/bon' && req.method === 'POST') {
         const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
-        if (typeof b.bon !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(b.bon) || b.bon.length >= 3e6) return json(res, 400, { error: 'Dit is geen geldige foto.' });
+        if (typeof b.bon !== 'string' || !/^data:(image\/(jpeg|png|webp)|application\/pdf);base64,/.test(b.bon) || b.bon.length >= 8e6) return json(res, 400, { error: 'Dit is geen geldige foto.' });
         kvPut('bon:' + t.id, { img: b.bon }); t.bon = 1; save(d); return json(res, 200, { ok: true, ...d });
       }
       if (p === '/api/boek/bon' && req.method === 'DELETE') {
