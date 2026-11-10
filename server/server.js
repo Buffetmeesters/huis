@@ -195,7 +195,7 @@ http.createServer(async (req, res) => {
       if (limited(ip)) return json(res, 429, { error: 'Te vaak geprobeerd. Wacht even en probeer het later opnieuw.' });
       const b = JSON.parse(await body(req));
       if (b.code) {
-        if (!guestsOn()) { failed(ip); return json(res, 403, { error: 'Gasttoegang staat uit.' }); }
+        if (!guestsOn()) { failed(ip); return json(res, 403, { error: 'Toegang staat uit.' }); }
         const d = loadData();
         const code = String(b.code).trim();
         const g = d && (d.guests || []).find(x => x.code && same(x.code, code) && !expired(x));
