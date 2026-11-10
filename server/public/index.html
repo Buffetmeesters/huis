@@ -391,7 +391,7 @@ function resetDue(){D.tasks.forEach(t=>{if(t.rep&&t.by&&t.next&&t.next<=iso(0)){
 const repLabel=t=>t.rep==='dag'?'Elke dag':t.rep==='week'?'Elke week op '+DN[t.wd??1]:t.rep==='maand'?'Elke maand op de '+(t.dm||1)+'e':'';
 const WX={0:'Onbewolkt',1:'Overwegend helder',2:'Half bewolkt',3:'Bewolkt',45:'Mist',48:'Mist',51:'Lichte motregen',53:'Motregen',55:'Zware motregen',56:'Ijzel',57:'Ijzel',61:'Lichte regen',63:'Regen',65:'Zware regen',66:'Ijsregen',67:'Ijsregen',71:'Lichte sneeuw',73:'Sneeuw',75:'Zware sneeuw',77:'Sneeuwkorrels',80:'Lichte buien',81:'Buien',82:'Zware buien',85:'Sneeuwbuien',86:'Zware sneeuwbuien',95:'Onweer',96:'Onweer met hagel',99:'Zwaar onweer met hagel'};
 function loadWeather(){if(S.wx!==undefined)return;S.wx=null;
- const done=v=>{S.wx=v;if(S.view==='overzicht')render()};
+ const done=v=>{S.wx=v;if(S.view==='overzicht'||(S.view==='home'&&!S.rm&&S.fl==null))render()};
  if(typeof fetch!=='function'){S.wx='err';return}
  fetch('https://api.open-meteo.com/v1/forecast?latitude=51.73&longitude=5.53&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FAmsterdam&forecast_days=1')
  .then(r=>r.ok?r.json():Promise.reject()).then(j=>j&&j.current&&j.daily?done(j):done('err')).catch(()=>done('err'))}
