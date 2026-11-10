@@ -54,7 +54,7 @@ const $=s=>document.querySelector(s);
 const post=(u,b)=>fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).then(async r=>({ok:r.ok,j:await r.json().catch(()=>({}))}));
 let owners=[];
 (async()=>{
- const r=await fetch('/api/me');const j=await r.json();owners=j.owners||[];
+ const r=await fetch('/api/me');const j=await r.json();owners=j.owners||[];if(!j.guests){const b2=$('#b2');if(b2)b2.classList.add('hide');}
  if(j.setup){
   $('#t').textContent='Eerste keer instellen';$('#s').textContent='Kies een wachtwoord (minstens 8 tekens) voor elke eigenaar.';
   owners.forEach((o,i)=>{$('#l'+i).textContent='Wachtwoord voor '+o});$('#setup').classList.remove('hide');

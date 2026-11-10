@@ -11,20 +11,22 @@ const DATA = process.env.DATA_DIR || '/data';
 const OWNERS = ['Joshua', 'Lorenzo'];
 const ADMIN = 'Admin';
 const isAdmin = s => !!s && s.role === 'owner' && s.ref === ADMIN;
-const SESSION_DAYS_OWNER = 30, SESSION_DAYS_GUEST = 7;
+const SESSION_DAYS_OWNER = 365, SESSION_DAYS_GUEST = 7;
 fs.mkdirSync(DATA, { recursive: true });
 const db = new DatabaseSync(path.join(DATA, 'huis.db'));
 db.exec(`
 CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL, t INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS owners (name TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (sid TEXT PRIMARY KEY, role TEXT NOT NULL, ref TEXT NOT NULL, exp INTEGER NOT NULL);`);
+for (const c of ['ua TEXT', 'created INTEGER', 'seen INTEGER']) { try { db.exec('ALTER TABLE sessions ADD COLUMN ' + c); } catch {} }
 const q = {
   get: db.prepare('SELECT v, t FROM kv WHERE k = ?'),
   put: db.prepare('INSERT INTO kv (k, v, t) VALUES (?, ?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v, t = excluded.t'),
   owner: db.prepare('SELECT * FROM owners WHERE name = ?'),
   ownerCount: db.prepare('SELECT COUNT(*) AS n FROM owners'),
   addOwner: db.prepare('INSERT INTO owners (name, salt, hash) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET salt = excluded.salt, hash = excluded.hash'),
-  addSess: db.prepare('INSERT INTO sessions (sid, role, ref, exp) VALUES (?, ?, ?, ?)'),
+  addSess: db.prepare('INSERT INTO sessions (sid, role, ref, exp, ua, created, seen) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  touchSess: db.prepare('UPDATE sessions SET seen = ? WHERE sid = ?'),
   getSess: db.prepare('SELECT * FROM sessions WHERE sid = ?'),
   delSess: db.prepare('DELETE FROM sessions WHERE sid = ?'),
   purge: db.prepare('DELETE FROM sessions WHERE exp < ?'),
@@ -77,18 +79,20 @@ function cookie(req) {
   const m = (req.headers.cookie || '').match(/(?:^|;\s*)sid=([a-f0-9]{64})/);
   return m ? m[1] : null;
 }
+const guestsOn = () => { const r = q.get.get('guestsOn'); try { return r ? JSON.parse(r.v) === true : false; } catch { return false; } };
 function session(req) {
   const sid = cookie(req); if (!sid) return null;
   const s = q.getSess.get(sha(sid));
   if (!s || s.exp < Date.now()) return null;
-  if (s.role === 'guest') { const g = findGuest(s.ref); if (!g || expired(g)) return null; }
+  if (s.role === 'guest') { if (!guestsOn()) return null; const g = findGuest(s.ref); if (!g || expired(g)) return null; }
+  if (!s.seen || Date.now() - s.seen > 36e5) { try { q.touchSess.run(Date.now(), s.sid); } catch {} }
   return s;
 }
 function startSession(req, res, role, ref) {
   q.purge.run(Date.now());
   const sid = crypto.randomBytes(32).toString('hex');
   const days = role === 'owner' ? SESSION_DAYS_OWNER : SESSION_DAYS_GUEST;
-  q.addSess.run(sha(sid), role, ref, Date.now() + days * 864e5);
+  q.addSess.run(sha(sid), role, ref, Date.now() + days * 864e5, String(req.headers['user-agent'] || '').slice(0, 300), Date.now(), Date.now());
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   res.setHeader('Set-Cookie', `sid=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${days * 86400}${secure}`);
 }
@@ -165,11 +169,11 @@ http.createServer(async (req, res) => {
     if (p === '/api/health') return json(res, 200, { ok: true });
 
     if (p === '/api/me') {
-      if (q.ownerCount.get().n === 0) return json(res, 200, { setup: true, owners: OWNERS });
+      if (q.ownerCount.get().n === 0) return json(res, 200, { setup: true, owners: OWNERS, guests: guestsOn() });
       const s = session(req);
       const names = db.prepare('SELECT name FROM owners ORDER BY name = ?, name').all(ADMIN).map(r => r.name);
-      if (!s) return json(res, 401, { owners: names });
-      if (s.role === 'owner') return json(res, 200, { role: 'owner', name: s.ref, admin: isAdmin(s), canCreateAdmin: s.ref === 'Joshua' && !q.owner.get(ADMIN) });
+      if (!s) return json(res, 401, { owners: names, guests: guestsOn() });
+      if (s.role === 'owner') return json(res, 200, { role: 'owner', guests: guestsOn(), name: s.ref, admin: isAdmin(s), canCreateAdmin: s.ref === 'Joshua' && !q.owner.get(ADMIN) });
       const g = findGuest(s.ref);
       return json(res, 200, { role: 'guest', id: g.id, name: g.n });
     }
@@ -189,6 +193,7 @@ http.createServer(async (req, res) => {
       if (limited(ip)) return json(res, 429, { error: 'Te vaak geprobeerd. Wacht even en probeer het later opnieuw.' });
       const b = JSON.parse(await body(req));
       if (b.code) {
+        if (!guestsOn()) { failed(ip); return json(res, 403, { error: 'Gasttoegang staat uit.' }); }
         const d = loadData();
         const code = String(b.code).trim();
         const g = d && (d.guests || []).find(x => x.code && same(x.code, code) && !expired(x));
@@ -201,6 +206,32 @@ http.createServer(async (req, res) => {
       return json(res, 401, { error: 'Inloggen is niet gelukt. Controleer de gegevens.' });
     }
 
+    if (p === '/api/guests/enabled') {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      if (req.method === 'PUT') {
+        const b = JSON.parse(await body(req));
+        kvPut('guestsOn', b.on === true);
+        if (b.on !== true) db.prepare("DELETE FROM sessions WHERE role = 'guest'").run();
+      }
+      return json(res, 200, { on: guestsOn() });
+    }
+    if (p === '/api/sessions') {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      const me = sha(cookie(req));
+      if (req.method === 'DELETE') {
+        const b = JSON.parse(await body(req));
+        if (b.others) { db.prepare("DELETE FROM sessions WHERE role = 'owner' AND ref = ? AND sid != ?").run(s.ref, me); return json(res, 200, { ok: true }); }
+        const row = db.prepare("SELECT sid FROM sessions WHERE role = 'owner' AND ref = ? AND substr(sid, 1, 12) = ?").get(s.ref, String(b.id || ''));
+        if (!row) return json(res, 404, { error: 'Apparaat niet gevonden' });
+        db.prepare('DELETE FROM sessions WHERE sid = ?').run(row.sid);
+        return json(res, 200, { ok: true });
+      }
+      const dev = ua => { ua = String(ua || ''); const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iPhone of iPad' : /Windows/.test(ua) ? 'Windows' : /Mac OS/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Onbekend apparaat'; const br = /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Edg\//.test(ua) ? 'Edge' : /Firefox/.test(ua) ? 'Firefox' : /Chrome/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : ''; return br ? os + ' · ' + br : os; };
+      const rows = db.prepare("SELECT sid, ua, created, seen, exp FROM sessions WHERE role = 'owner' AND ref = ? AND exp > ? ORDER BY seen DESC").all(s.ref, Date.now());
+      return json(res, 200, { sessions: rows.map(r => ({ id: r.sid.slice(0, 12), apparaat: dev(r.ua), sinds: r.created || null, gezien: r.seen || null, nu: r.sid === me })) });
+    }
     if (p === '/api/logout' && req.method === 'POST') {
       const sid = cookie(req); if (sid) q.delSess.run(sha(sid));
       res.setHeader('Set-Cookie', 'sid=; Path=/; HttpOnly; Max-Age=0');
@@ -688,9 +719,9 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
-    const ICONS = { '/favicon.svg': ['favicon.svg', 'image/svg+xml'], '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'], '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'] };
-    if (ICONS[p]) { res.writeHead(200, { 'content-type': ICONS[p][1], 'cache-control': 'public, max-age=86400' }); return fs.createReadStream(path.join(PUB, ICONS[p][0])).pipe(res); }
-    if (p === '/manifest.webmanifest') { res.writeHead(200, { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=3600' }); return res.end(JSON.stringify({ name: 'Huis CPvH', short_name: 'Huis', start_url: '/', display: 'standalone', background_color: '#000000', theme_color: '#1b2748', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }] })); }
+    const ICONS = { '/favicon.svg': ['favicon.svg', 'image/svg+xml'], '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'], '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'], '/icon-maskable.png': ['icon-maskable.png', 'image/png'], '/sw.js': ['sw.js', 'text/javascript'] };
+    if (ICONS[p]) { res.writeHead(200, { 'content-type': ICONS[p][1], 'cache-control': p === '/sw.js' ? 'no-cache' : 'public, max-age=86400' }); return fs.createReadStream(path.join(PUB, ICONS[p][0])).pipe(res); }
+    if (p === '/manifest.webmanifest') { res.writeHead(200, { 'content-type': 'application/manifest+json', 'cache-control': 'public, max-age=3600' }); return res.end(JSON.stringify({ id: '/', name: 'Huis CPvH', short_name: 'Huis', start_url: '/', scope: '/', display: 'standalone', orientation: 'any', background_color: '#000000', theme_color: '#1b2748', icons: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }, { src: '/icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] })); }
     if (p === '/privacy') return file(res, 'privacy.html', 'text/html; charset=utf-8');
     if (p === '/admin') {
       const s = session(req);
