@@ -88,6 +88,20 @@ function session(req) {
   if (!s.seen || Date.now() - s.seen > 36e5) { try { q.touchSess.run(Date.now(), s.sid); } catch {} }
   return s;
 }
+// Alleen thuis: gasten mogen alleen binnen via het thuisnetwerk of met GPS dichtbij het huis.
+const geoCfg = () => kvGet('geo') || {};
+const normIp = ip => { ip = String(ip || '').replace(/^::ffff:/, ''); return ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip; };
+const geoOk = new Map();
+const distM = (a, b, c, d) => { const R = 6371000, r = x => x * Math.PI / 180, dl = r(c - a), dn = r(d - b), h = Math.sin(dl / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+function isAway(req, s) {
+  if (!s || s.role !== 'guest') return false;
+  const cfg = geoCfg(); if (!cfg.on || !((cfg.ips || []).length || cfg.lat != null)) return false;
+  const g = findGuest(s.ref); if (g && g.anyw) return false;
+  const ipn = normIp(req.headers['cf-connecting-ip'] || req.socket.remoteAddress);
+  if ((cfg.ips || []).some(x => x.ip === ipn)) return false;
+  const sid = cookie(req); if (sid && (geoOk.get(sha(sid)) || 0) > Date.now()) return false;
+  return true;
+}
 function startSession(req, res, role, ref) {
   q.purge.run(Date.now());
   const sid = crypto.randomBytes(32).toString('hex');
@@ -170,6 +184,31 @@ http.createServer(async (req, res) => {
   try {
     const p = url.pathname;
     if (p === '/api/health') return json(res, 200, { ok: true });
+    if (p.startsWith('/api/') && !['/api/me', '/api/login', '/api/logout', '/api/geo'].includes(p)) {
+      const s0 = session(req); if (isAway(req, s0)) return json(res, 403, { error: 'Alleen thuis', away: true });
+    }
+    if (p === '/api/geo' && req.method === 'POST') {
+      const s = session(req); if (!s) return json(res, 401, { error: 'Niet ingelogd' });
+      const b = JSON.parse(await body(req)), cfg = geoCfg();
+      if (cfg.lat == null || typeof b.lat !== 'number' || typeof b.lon !== 'number') return json(res, 200, { ok: false, reden: cfg.lat == null ? 'Het huis heeft nog geen locatie.' : 'Geen locatie ontvangen.' });
+      const acc = Math.min(Math.max(+b.acc || 0, 0), 100), dm = Math.round(distM(cfg.lat, cfg.lon, b.lat, b.lon));
+      if (dm - acc <= (cfg.radius || 150)) { const sid = cookie(req); if (sid) geoOk.set(sha(sid), Date.now() + 10 * 60e3); return json(res, 200, { ok: true }); }
+      return json(res, 200, { ok: false, afstand: dm });
+    }
+    if (p === '/api/geo/cfg') {
+      const s = session(req); if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      let c = geoCfg();
+      if (req.method === 'PUT') {
+        const b = JSON.parse(await body(req)); c = { ...c, ips: c.ips || [] };
+        if (typeof b.on === 'boolean') c.on = b.on;
+        if (b.radius) c.radius = Math.min(Math.max(+b.radius || 150, 30), 2000);
+        if (typeof b.lat === 'number' && typeof b.lon === 'number') { c.lat = b.lat; c.lon = b.lon; }
+        if (b.addNet) { const ipn = normIp(ip); if (!c.ips.some(x => x.ip === ipn)) c.ips.push({ ip: ipn, d: new Date().toISOString().slice(0, 10) }); c.ips = c.ips.slice(-5); }
+        if (typeof b.delIp === 'string') c.ips = c.ips.filter(x => x.ip !== b.delIp);
+        kvPut('geo', c);
+      }
+      return json(res, 200, { on: !!c.on, lat: c.lat ?? null, lon: c.lon ?? null, radius: c.radius || 150, ips: c.ips || [], me: normIp(ip) });
+    }
 
     if (p === '/api/me') {
       if (q.ownerCount.get().n === 0) return json(res, 200, { setup: true, owners: OWNERS, guests: guestsOn() });
@@ -178,7 +217,7 @@ http.createServer(async (req, res) => {
       if (!s) return json(res, 401, { owners: names, guests: guestsOn() });
       if (s.role === 'owner') return json(res, 200, { role: 'owner', guests: guestsOn(), name: s.ref, admin: isAdmin(s), canCreateAdmin: s.ref === 'Joshua' && !q.owner.get(ADMIN) });
       const g = findGuest(s.ref);
-      return json(res, 200, { role: 'guest', id: g.id, name: g.n });
+      return json(res, 200, { role: 'guest', id: g.id, name: g.n, away: isAway(req, s), geo: !!geoCfg().on });
     }
 
     if (p === '/api/setup' && req.method === 'POST') {
