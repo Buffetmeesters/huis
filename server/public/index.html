@@ -701,11 +701,11 @@ boodschappen(){let h=`<h2>Boodschappen</h2>`+(S.role==='owner'?`<div class="card
 boek(){
  if(!S.bk&&!S.bkl)loadBoek();
  if(!S.bk)return '<h2>Huishoudboekje</h2><p class="state">'+(S.bkerr||'Laden…')+'</p>';
- const B=S.bk,mo=S.bm||iso(0).slice(0,7),[my,mm]=mo.split('-').map(Number),eur=c=>(c/100).toLocaleString('nl-NL',{style:'currency',currency:'EUR'}),
+ const B0=S.bk,fl=S.bfl||'alle',B={...B0,tx:B0.tx.filter(x=>fl==='alle'||(fl==='zelf'?!x.ref:!!x.ref))},mo=S.bm||iso(0).slice(0,7),[my,mm]=mo.split('-').map(Number),eur=c=>(c/100).toLocaleString('nl-NL',{style:'currency',currency:'EUR'}),
   inM=B.tx.filter(x=>x.d.startsWith(mo)).sort((a,b)=>b.d.localeCompare(a.d)||(b.tm||'').localeCompare(a.tm||'')||b.at-a.at),
   q=(S.bq||'').trim().toLowerCase(),RW=q?B.tx.filter(x=>{const h=[x.n,x.c,x.w,x.src==='rabo'?'rabobank':x.src==='ing'?'ing':x.src,x.d,x.d.split('-').reverse().join('-'),x.tm,(x.a/100).toFixed(2),(x.a/100).toFixed(2).replace('.',','),x.t==='in'?'inkomst':'uitgave'].join(' ').toLowerCase();return q.split(/\s+/).every(w=>h.includes(w))}).sort((a,b)=>b.d.localeCompare(a.d)||(b.tm||'').localeCompare(a.tm||'')||b.at-a.at):inM,
   sum=(L,t)=>L.filter(x=>x.t===t&&!x.x).reduce((a,x)=>a+x.a,0),inc=sum(inM,'in'),out=sum(inM,'uit'),
-  kas=(B.set.kasStart||0)+sum(B.tx.filter(x=>x.src==='contant'),'in')-sum(B.tx.filter(x=>x.src==='contant'),'uit'),
+  kas=(B.set.kasStart||0)+sum(B0.tx.filter(x=>x.src==='contant'),'in')-sum(B0.tx.filter(x=>x.src==='contant'),'uit'),
   rb=sum(inM.filter(x=>x.src==='rabo'),'uit'),lg=B.set.leefgeld||0,
   cats={};inM.filter(x=>x.t==='uit'&&!x.x).forEach(x=>cats[x.c||'Overig']=(cats[x.c||'Overig']||0)+x.a);
  const bud=B.set.budget||{},cl=[...new Set([...Object.keys(cats),...Object.keys(bud)])].map(k=>[k,cats[k]||0]).sort((a,b)=>b[1]-a[1]),mx=Math.max(1,...cl.filter(x=>!bud[x[0]]).map(x=>x[1])),f=S.bf||{},ty=S.bt||'uit',cs=ty==='in'?[...B.catsIn,...(f.c&&!B.catsIn.includes(f.c)&&/\(huur\)$/.test(f.c)?[f.c]:[])]:B.catsUit,
@@ -713,7 +713,7 @@ boek(){
  const mn=MAAND[mm-1][0].toUpperCase()+MAAND[mm-1].slice(1);
  let h=`<div class="amh"><button class="btn alt" data-act="bmon" data-d="-1" aria-label="Vorige maand">‹</button><h2 style="margin:0">${mn} ${my}</h2><button class="btn alt" data-act="bmon" data-d="1" aria-label="Volgende maand">›</button></div>
 <div class="ovg" style="align-items:start"><div>
-<div class="card"><div class="rst"><span>Inkomsten</span><b style="color:#5fd38d">${eur(inc)}</b></div><div class="rst"><span>Uitgaven</span><b>${eur(out)}</b></div><div class="rst"><span>Saldo deze maand</span><b>${eur(inc-out)}</b></div><div class="rst"><span>Contant in kas (totaal)</span><b>${eur(kas)}</b></div>
+<div class="chips" style="margin-bottom:10px" role="group" aria-label="Welke boekingen tellen mee in het overzicht">${[['alle','Alles'],['zelf','Zelf toegevoegd'],['bank','Van de bank']].map(([k,n])=>`<button class="chip" data-act="bflt" data-k="${k}" aria-pressed="${fl===k}">${n}</button>`).join('')}</div>${fl!=='alle'?`<p class="state" style="margin:0 0 8px">Overzicht van ${fl==='zelf'?'alleen wat je zelf hebt toegevoegd (contant en handmatig)':'alleen de boekingen die van de bank komen'}. Contant in kas blijft het totaal.</p>`:''}<div class="card"><div class="rst"><span>Inkomsten</span><b style="color:#5fd38d">${eur(inc)}</b></div><div class="rst"><span>Uitgaven</span><b>${eur(out)}</b></div><div class="rst"><span>Saldo deze maand</span><b>${eur(inc-out)}</b></div><div class="rst"><span>Contant in kas (totaal)</span><b>${eur(kas)}</b></div>
 ${lg?`<div style="margin-top:10px"><div class="state">Leefgeld: ${eur(rb)} besteed van ${eur(lg)} (Rabobank)</div><div class="bar"><div class="track"><i style="width:${Math.min(100,rb/lg*100)}%;${rb>lg?'background:#e8545e':''}"></i></div></div></div>`:''}</div>
 <h2>Uitgaven per categorie</h2><div class="card">${cl.length?cl.map(([c,a])=>{const bg=bud[c];return `<div style="margin:12px 0"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap"><span class="name">${esc(c)}</span><span class="state" style="white-space:nowrap">${bg?eur(a)+' van '+eur(bg)+(a>bg?' ('+eur(a-bg)+' over)':''):eur(a)}</span></div><div class="bar" style="display:block;margin-top:6px"><div class="track"><i style="width:${bg?Math.min(100,a/bg*100):a/mx*100}%;${bg&&a>bg?'background:#e8545e':''}"></i></div></div></div>`}).join(''):'<p class="state" style="margin:0">Nog niets deze maand.</p>'}</div>
 </div><div><h2>Toevoegen</h2><div class="card form">
@@ -905,6 +905,7 @@ document.addEventListener('click',e=>{
  if(a==='spk'){const sp=S.spk||HAM.map(x=>x.id),k=sp.indexOf(t.dataset.e);S.say=(document.getElementById('say')||{}).value||S.say;k<0?sp.push(t.dataset.e):sp.splice(k,1);S.spk=sp;render();return}
  if(a==='gref'){S.g=undefined;GL=0;loadGoogle(true);toast('Google Agenda wordt opnieuw opgehaald…');return}
  if(a==='bskip'){fetch('/api/boek/tx',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({id:t.dataset.id,x:t.dataset.x==='1'})}).then(r=>r.json()).then(j=>{if(j.tx){S.bk=j;S.bmsg=(t.dataset.x==='1'?'Deze en alle boekingen van dezelfde tegenpartij tellen niet meer mee.':'Deze en alle boekingen van dezelfde tegenpartij tellen weer mee.')}else S.bmsg=j.error||'Mislukt.';render()});return}
+ if(a==='bflt'){S.bfl=t.dataset.k;S.bshow=15;render();return}
  if(a==='bmore'){S.bshow=(S.bshow||15)+15;render();return}
  if(a==='bmon'){S.bshow=15;S.bopen=0;const [y,m]=(S.bm||iso(0).slice(0,7)).split('-').map(Number),x=new Date(y,m-1+(+t.dataset.d),1,12);S.bm=x.toLocaleDateString('sv-SE').slice(0,7);render();return}
  if(a==='btype'||a==='bsrc'||a==='bdennis'){const g=id=>(document.getElementById(id)||{value:''}).value;S.bf={d:g('bd'),a:g('ba'),c:g('bc'),n:g('bn'),w:g('bw')};if(a==='btype')S.bt=t.dataset.k;else if(a==='bsrc')S.bs=t.dataset.k;else{const h=(D.huur||[]).find(x=>x.id===t.dataset.h);if(h){S.bt='in';S.bs='contant';S.bh=h.id;S.bf.c=h.n+' (huur)';S.bf.n='Huur '+h.n;S.bf.a=(h.a/100).toFixed(2).replace('.',',')}}render();return}
