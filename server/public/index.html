@@ -827,6 +827,7 @@ function dialHTML(r){const c=cc(r),mn=15,mx=28,f=(c.set-mn)/(mx-mn);let t='';
  return `<div class="dial"><button class="btn alt rd" data-act="tm" aria-label="Temperatuur lager">−</button><svg viewBox="0 0 220 220" role="img" aria-label="Ingesteld op ${c.set} graden, nu ${nu} graden">${t}<circle cx="110" cy="110" r="72" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.12)"/><text x="110" y="108" text-anchor="middle" class="dl">${c.set}°C</text><text x="110" y="130" text-anchor="middle" class="ds">nu ${nu}°</text><text x="48" y="200" text-anchor="middle" class="dm">${mn}°</text><text x="172" y="200" text-anchor="middle" class="dm">${mx}°</text></svg><button class="btn alt rd" data-act="tp" aria-label="Temperatuur hoger">+</button></div>`}
 const KIOSK=(()=>{const m=location.search.match(/[?&]verdieping=(\d)/);return m&&FL[+m[1]]?+m[1]:null})();
 if(KIOSK!=null)document.body.classList.add('kiosk');
+try{const n=JSON.parse(sessionStorage.getItem('huis.nav')||'null');if(n&&typeof n.v==='string'&&(VIEWS[n.v]||n.v==='home')&&KIOSK==null){S.view=n.v;S.fl=typeof n.fl==='number'?n.fl:S.fl;S.rm=n.rm||S.rm}}catch(e){}
 function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL=1;fetch('/api/bank/status').then(r=>r.ok?r.json():null).then(j=>{S.bank=j;render()}).catch(()=>{S.bank=null})}
 
  if(KIOSK!=null){S.view='home';S.fl=KIOSK}
@@ -834,6 +835,7 @@ function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL
  $('#sub').textContent=owner?'Eigenaarsweergave: alles zichtbaar':'Weergave voor familie en gasten: alleen wat jullie toestaan';
  if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;const gm=GM();S.view=(S.view==='notities'&&myNotes().length)||(gm.some(x=>x[0]===S.view))?S.view:'home'}
  if(!rl().some(x=>x.id===S.room)&&rl()[0])S.room=rl()[0].id;
+ try{if(KIOSK==null)sessionStorage.setItem('huis.nav',JSON.stringify({v:S.view,fl:S.fl,rm:S.rm}))}catch(e){}
  const vl=owner?VL:[VL.find(x=>x[0]==='home'),...GM().map(x=>VL.find(v=>v[0]===x[0])),...(myNotes().length?[VL[VL.length-1]]:[])];
  $('#views').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}">${n}</button>`).join('');
  $('#rail').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg><span>${n}</span></button>`).join('')+(ADM&&S.role==='owner'?`<button type="button" onclick="location.href='/admin'" aria-label="${ADM}" title="${ADM}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg><span>${ADM}</span></button>`:'');

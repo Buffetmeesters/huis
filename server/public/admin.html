@@ -116,6 +116,16 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card">
+   <h2>Wachtwoord wijzigen</h2>
+   <p>Wijzig het wachtwoord van de Admin-login. Op andere apparaten word je daarna uitgelogd.</p>
+   <label for="pw0">Huidig wachtwoord</label><input id="pw0" type="password" autocomplete="current-password">
+   <label for="pw1">Nieuw wachtwoord (minstens 8 tekens)</label><input id="pw1" type="password" autocomplete="new-password">
+   <label for="pw2">Nieuw wachtwoord nog een keer</label><input id="pw2" type="password" autocomplete="new-password">
+   <button id="pwgo">Wachtwoord wijzigen</button>
+   <p id="pwmsg" role="status"></p>
+  </div>
+
+  <div class="card">
    <h2>Back-up</h2>
    <p>Elke nacht maakt de server automatisch een kopie van alle gegevens (gebruikers, taken, recepten, instellingen). De laatste 20 blijven bewaard op de server in de map <code>data/backups</code>. Download af en toe een kopie en bewaar die ergens anders (bijvoorbeeld op je computer of in de cloud). Dan ben je ook veilig als de hele server uitvalt.</p>
    <button id="bnow">Nu een back-up maken</button>
@@ -247,6 +257,7 @@ const ebgo=bank=>async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/a
 $('#ebgo').onclick=ebgo('rabo');$('#ebing').onclick=ebgo('ing');
 const ebun=(bank,n)=>async()=>{if(!confirm(n+' ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink',{bank});ebload()};
 $('#ebun').onclick=ebun('rabo','Rabobank');$('#ebuning').onclick=ebun('ing','ING');
+$('#pwgo').onclick=async()=>{const o=$('#pw0').value,n=$('#pw1').value;if(n!==$('#pw2').value)return say('#pwmsg','De twee nieuwe wachtwoorden zijn niet gelijk.','err');if(n.length<8)return say('#pwmsg','Het nieuwe wachtwoord moet minstens 8 tekens hebben.','err');const r=await api('POST','/api/password',{old:o,new:n});say('#pwmsg',r.ok?'Wachtwoord gewijzigd.':(r.j.error||'Mislukt'),r.ok?'ok':'err');if(r.ok){$('#pw0').value=$('#pw1').value=$('#pw2').value=''}};
 async function gload(){const r=await api('GET','/api/geo/cfg');if(!r.ok)return;const c=r.j;$('#gon').checked=c.on;$('#grad').value=c.radius;
  $('#gips').innerHTML=c.ips.map(x=>`<li>${x.ip} (sinds ${x.d}) <button data-ip="${x.ip}" class="gdel">Wis</button></li>`).join('')+(c.ips.length?'':'<li>Nog geen thuisnetwerk opgeslagen.</li>');
  say('#gmsg',(c.lat!=null?'Huislocatie ingesteld. ':'Nog geen huislocatie. ')+'Je huidige netwerk is '+c.me+'.')}
