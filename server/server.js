@@ -142,7 +142,7 @@ function filterForGuest(d, gid) {
   const out = { ...d };
   out.guests = g ? [{ ...g, code: undefined }] : [];
   out.notes = (d.notes || []).filter(n => (n.to || []).includes(gid));
-  delete out.gcal; delete out.paid; delete out.log; delete out.recipes; delete out.events;
+  delete out.gcal; delete out.paid; delete out.log; delete out.recipes; delete out.events; delete out.huur;
   const m = (g && g.mod) || {};
   out.tasks = m.taken ? (d.tasks || []) : []; out.shop = m.shop ? (d.shop || []) : []; out.afval = m.afval ? (d.afval || []) : [];
   out.phr = (d.phr || []).map((p, i) => ({ t: p.t, i, id: p.id })).filter(p => p.id && ((g && g.ph) || []).includes(p.id)); delete out.spf; delete out.spl;
