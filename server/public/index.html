@@ -583,7 +583,6 @@ overzicht(){resetDue();loadWeather();
  const today=iso(0),hr=new Date().getHours(),hi=hr<6?'Goedenacht':hr<12?'Goedemorgen':hr<18?'Goedemiddag':'Goedenavond';
  const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),aanA0=S.rooms.filter(r=>r.c&&r.c.air).length,nAir0=S.rooms.filter(r=>r.ce).length,tc=S.rooms.filter(r=>r.ce&&r.c&&r.c.cur!=null);
  let h=skyHTML(`<span>${aanL} ${aanL===1?'lamp':'lampen'} aan</span>`+(nAir0?`<span>${aanA0} van ${nAir0} airco’s aan</span>`:'')+(houseTemps().avg!=null?`<span>${fT(houseTemps().avg)} binnen</span>`:''));
- if(S.role==='owner'&&!GUEST)h+=bankWarn();
  const heroH=h;h='';
  const w=S.wx;
  const wH=`<h2>Weer vandaag</h2><div class="card">`+(w&&w!=='err'?`<div><div><div class="big">${Math.round(w.current.temperature_2m)}°</div><div class="name">${WX[w.current.weather_code]||'Onbekend'}</div><div class="state">Voelt als ${Math.round(w.current.apparent_temperature)}° · wind ${Math.round(w.current.wind_speed_10m)} km/u</div></div><div class="state" style="margin-top:8px">Hoog ${Math.round(w.daily.temperature_2m_max[0])}°<br>Laag ${Math.round(w.daily.temperature_2m_min[0])}°<br>Kans op neerslag ${w.daily.precipitation_probability_max[0]??0}%</div></div>`:w==='err'?'<div class="name">Het weer kon niet worden geladen</div><div class="state">Controleer de internetverbinding. In de demo kan het ophalen ook geblokkeerd zijn.</div>':'<div class="state">Weer laden…</div>')+`</div>`;
