@@ -129,7 +129,7 @@ async function bankSync() {
           const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === bsrc && (x.d === d || x.d === bd) && x.a === a && x.t === type);
           const key = (cp || om.slice(0, 30)).toLowerCase();
           if (man) { man.ref = ref; man.k = key; have.add(ref); continue; }
-          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, tm: ex.tm || undefined, bd: d !== bd ? bd : undefined, by: 'bank', at: Date.now() });
+          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, x: (b.set.skipK && b.set.skipK[key.slice(0, 60)]) || /spaar/i.test(cp + ' ' + om) ? 1 : undefined, tm: ex.tm || undefined, bd: d !== bd ? bd : undefined, by: 'bank', at: Date.now() });
           have.add(ref); added++;
         }
         ck = j.continuation_key || ''; pages++;
@@ -403,6 +403,12 @@ http.createServer(async (req, res) => {
       }
       if (p === '/api/boek/tx' && req.method === 'PUT') {
         const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
+        if (typeof b.x === 'boolean') {
+          d.set.skipK = d.set.skipK || {};
+          if (t.k) { if (b.x) d.set.skipK[t.k] = 1; else delete d.set.skipK[t.k]; d.tx.forEach(o => { if (o.k === t.k) { if (b.x) o.x = 1; else delete o.x; } }); }
+          else { if (b.x) t.x = 1; else delete t.x; }
+          save(d); return json(res, 200, { ok: true, ...d });
+        }
         const c = String(b.c || '').trim().slice(0, 60); if (!c) return json(res, 400, { error: 'Kies een categorie.' });
         t.c = c; delete t.auto; d.set.rules = d.set.rules || {}; if (t.k) d.set.rules[t.k] = c; save(d); return json(res, 200, { ok: true, ...d });
       }
@@ -420,7 +426,7 @@ http.createServer(async (req, res) => {
           if (!(a > 0) || a > 1e9 || !/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) { skip++; continue; }
           if (ref && have.has(ref)) { skip++; continue; }
           const c = String(t.c || '').slice(0, 60), nm = String(t.n || '').slice(0, 200);
-          d.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c, n: nm, w: '', src: 'rabo', ref, by: s.ref, at: Date.now() });
+          const kk = String(t.k || '').toLowerCase().slice(0, 60); d.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c, n: nm, w: '', src: 'rabo', ref, k: kk || undefined, x: (kk && d.set.skipK && d.set.skipK[kk]) || /spaar/i.test(nm) ? 1 : undefined, by: s.ref, at: Date.now() });
           if (ref) have.add(ref); n++;
           const key = String(t.k || '').toLowerCase().slice(0, 60); if (key && c) d.set.rules[key] = c;
         }
