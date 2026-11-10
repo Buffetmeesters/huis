@@ -60,6 +60,8 @@ function turnOnData(entity, b) {
 }
 function haErr(e) { return /^Home Assistant antwoordde/.test(e.message) ? e.message : 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message); }
 function haCfg() { const r = q.get.get('ha'); const c = r ? JSON.parse(r.v) : null; return c && c.url && c.token ? c : null; }
+const DEF_ROOMS = [['woon','Woonkamer'],['keuken','Keuken'],['hal','Hal'],['voordeur','Voordeur'],['hal2','Hal bij trap'],['toilet','Toilet'],['tuin','Tuin'],['sl14','Onze slaapkamer'],['sl12','Logeerkamer'],['sl9','Gamekamer'],['bad','Badkamer'],['ol1','Overloop 1e verdieping'],['sl13','Slaapkamer Dennis'],['zolder','Zolder'],['ol2','Overloop zolder']].map(([id, name]) => ({ id, name }));
+function roomList() { const r = loadRooms(); return r.length ? r : DEF_ROOMS; }
 function loadRooms() { const r = q.get.get('rooms'); try { const x = r ? JSON.parse(r.v) : []; return Array.isArray(x) ? x : []; } catch { return []; } }
 async function haCall(cfg, path, payload) {
   const r = await fetch(cfg.url + path, {
@@ -242,6 +244,22 @@ http.createServer(async (req, res) => {
       if (!/^scene\.[\w]+$/.test(sc.hue)) return json(res, 400, { error: 'Ongeldige scène' });
       try { await haCall(cfg, '/api/services/scene/turn_on', { entity_id: sc.hue }); return json(res, 200, { ok: true }); }
       catch (e) { return json(res, 502, { error: haErr(e) }); }
+    }
+    if (p === '/api/sensors') {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      const cfg = haCfg(); if (!cfg) return json(res, 400, { error: 'Home Assistant is nog niet ingesteld.' });
+      try {
+        const st = new Map((await haCall(cfg, '/api/states')).map(e => [e.entity_id, e]));
+        const links = kvGet('sensors') || {};
+        const num = id => { const e = id && st.get(id); const v = e ? parseFloat(e.state) : NaN; return Number.isFinite(v) ? v : null; };
+        const out = {};
+        for (const [room, l] of Object.entries(links)) {
+          const m = st.get(l.m);
+          out[room] = { m: m ? (m.state === 'on' ? true : m.state === 'off' ? false : null) : null, mt: m ? m.last_changed : null, t: num(l.t), lx: num(l.lx), bat: num(l.bat), ok: !!m };
+        }
+        return json(res, 200, { sensors: out });
+      } catch (e) { return json(res, 502, { error: haErr(e) }); }
     }
     if (p === '/api/lights' || p === '/api/light' || p === '/api/apply' || p === '/api/climate') {
       const s = session(req);
@@ -574,6 +592,31 @@ http.createServer(async (req, res) => {
           const all = await ha('/api/states');
           const out = all.filter(e => e.entity_id.startsWith('scene.')).map(e => ({ id: e.entity_id, naam: e.attributes.name || e.attributes.friendly_name || e.entity_id, groep: e.attributes.group_name || '' }));
           return json(res, 200, { scenes: out });
+        }
+        if (p === '/api/ha/sensors') {
+          if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+          const SEN = ['motion', 'occupancy', 'temperature', 'illuminance', 'battery'];
+          const nm = e => (e.attributes.friendly_name || e.entity_id).toLowerCase();
+          const kind = e => { const d = e.attributes.device_class; if (SEN.includes(d)) return d === 'occupancy' ? 'motion' : d; const n = nm(e) + ' ' + e.entity_id; if (/beweging|motion/.test(n) && e.entity_id.startsWith('binary_sensor.') && !/ingeschakeld|enabled/.test(n)) return 'motion'; if (!e.entity_id.startsWith('sensor.')) return ''; if (/temperatuur|temperature/.test(n)) return 'temperature'; if (/licht|illuminance|lux/.test(n)) return 'illuminance'; if (/batterij|battery/.test(n)) return 'battery'; return ''; };
+          const all = await ha('/api/states');
+          const list = all.map(e => ({ e, k: kind(e) })).filter(x => x.k);
+          const items = list.map(({ e, k }) => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, soort: k, staat: e.state, eenheid: e.attributes.unit_of_measurement || '', wijzig: e.last_changed, klasse: e.attributes.device_class || '' }));
+          const base = id => id.split('.')[1].replace(/_(beweging|motion|temperatuur|temperature|lichtniveau|licht|illuminance|batterij|battery)(_\d+)?$/, '');
+          const links = kvGet('sensors') || {};
+          if (req.method === 'PUT') {
+            const b = JSON.parse(await body(req));
+            const room = String(b.room || ''); if (!roomList().some(r => r.id === room)) return json(res, 400, { error: 'Onbekende ruimte' });
+            if (!b.m) { delete links[room]; kvPut('sensors', links); return json(res, 200, { ok: true, link: null }); }
+            const mo = list.find(x => x.e.entity_id === b.m && x.k === 'motion'); if (!mo) return json(res, 400, { error: 'Die bewegingssensor staat niet in Home Assistant.' });
+            const bs = base(b.m), l = { m: b.m };
+            for (const [key, kd] of [['t', 'temperature'], ['lx', 'illuminance'], ['bat', 'battery']]) {
+              const c = list.filter(x => x.k === kd && x.e.entity_id.startsWith('sensor.') && base(x.e.entity_id) === bs);
+              if (c.length) l[key] = c[0].e.entity_id;
+            }
+            links[room] = l; kvPut('sensors', links);
+            return json(res, 200, { ok: true, link: l });
+          }
+          return json(res, 200, { items, links, rooms: roomList().map(r => ({ id: r.id, naam: r.name })) });
         }
         if (p === '/api/ha/entities') {
           const all = await ha('/api/states');

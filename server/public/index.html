@@ -240,6 +240,11 @@ body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
 const LI=(...n)=>n.map(x=>({n:x,on:false,b:60}));
 const FL=['Begane grond','1e verdieping','2e verdieping'];
 const remoteHTML=r=>`<div class="card soon"><div class="name">Hue-afstandsbediening</div><div class="state">Knoppen koppelen aan lampen en sfeer volgt met de koppeling</div></div>`;
+const agoTxt=t=>{if(!t)return '';const m=Math.max(0,Math.round((Date.now()-new Date(t))/60000));return m<1?'zojuist':m<60?m+' min geleden':m<1440?Math.floor(m/60)+' uur geleden':Math.floor(m/1440)+' dagen geleden'};
+const senCard=r=>{const v=(S.sens||{})[r.id];if(!v)return '';const p=[];
+ p.push(`<div class="state">${!v.ok?'Sensor niet gevonden in Home Assistant':v.m===true?'Beweging nu':v.m===false?'Geen beweging · laatst gewijzigd '+agoTxt(v.mt):'Geen gegevens'}</div>`);
+ const g=[];if(v.t!=null)g.push(v.t.toFixed(1).replace('.',',')+' °C');if(v.lx!=null)g.push(Math.round(v.lx)+' lux');if(v.bat!=null)g.push('batterij '+Math.round(v.bat)+'%');
+ return `<h2>Sensor</h2><div class="card"><div class="name">${v.m===true?'🟢 Beweging':'⚪ Rustig'}</div>${p.join('')}${g.length?`<div class="state">${g.join(' · ')}</div>`:''}${v.bat!=null&&v.bat<=20?'<div class="state" style="color:#e5484d">Batterij bijna leeg</div>':''}</div>`};
 const sensorHTML=r=>`<div class="card"><div class="row"><div><div class="name">Bewegingssensor</div><div class="state">${r.auto===false?'Licht gaat niet automatisch aan':'Licht gaat automatisch aan bij beweging'}</div></div><button class="tog" data-act="auto" aria-pressed="${r.auto!==false}" aria-label="Bewegingssensor aan of uit"></button></div></div>`;
 const S={role:'owner',view:'overzicht',room:'woon',film:false,
 rooms:[
@@ -316,6 +321,7 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
      else{delete HOLD[rm.id];toast('De airco in '+rm.name+' heeft de opdracht niet uitgevoerd.')}}
     if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
     c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];c.fan=v.fan;c.fans=v.fans||[];c.swing=v.swing;c.swings=v.swings||[];LASTC[rm.id]={set,air}})}}catch(e){}
+  if(S.role==='owner')try{const rs=await fetch('/api/sensors');if(rs.status===200){const nj=JSON.stringify((await rs.json()).sensors||{});const o=JSON.parse(nj);if(JSON.stringify(S.sens||{})!==nj)ch=true;S.sens=o}}catch(e){}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
 const LASTC={},CT={},HOLD={};
 function toast(t){let d=document.getElementById('toast');if(!d){d=document.createElement('div');d.id='toast';d.setAttribute('role','status');d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:110px;max-width:90vw;background:#2b2b3a;color:#fff;padding:12px 16px;border-radius:14px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:.9rem';document.body.appendChild(d)}d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(()=>{d.style.display='none'},7000)}
@@ -665,6 +671,7 @@ function render(){
  <div class="mini"><button class="btn" data-act="play">${S.media.playing?'Pauze':'Afspelen'}</button><span class="state">Volume ${S.media.vol}%</span></div>
  <input type="range" min="0" max="100" value="${S.media.vol}" data-act="vol" aria-label="Volume"></div>`;
  if(can('klimaat')&&r.ce)Rr+=`<h2>Klimaat</h2><div class="card dialcard"><div class="row"><div class="name">Temperatuur</div><div class="row" style="gap:10px"><span class="state">Airco ${S.clim.air?'aan':'uit'}</span><button class="tog" data-act="air" aria-pressed="${S.clim.air}" aria-label="Airco aan of uit"></button></div></div>${dialHTML(r)}${modeChips(r)}</div>`;
+ if(owner)X+=senCard(r);
  if(r.id==='voordeur')X+=`<h2>Voordeur</h2><div class="grid"><div class="card soon"><div class="name">Videodeurbel</div><div class="state">Live beeld, beltoon en opnames volgen met de koppeling. Alleen zichtbaar voor Joshua en Lorenzo.</div></div></div>`;
  if(owner){X+=`<h2>Alleen voor jullie</h2><div class="grid">
  <div class="card soon"><div class="name">Videodeurbel</div><div class="state">Koppelen in fase 2</div></div>

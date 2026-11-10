@@ -84,6 +84,15 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card">
+   <h2>Sensoren (Hue-beweging)</h2>
+   <p>Haalt alle bewegings-, temperatuur-, licht- en batterijsensoren op zoals Home Assistant ze nu doorgeeft. Kies per ruimte de bewegingssensor; temperatuur, licht en batterij van hetzelfde apparaat worden automatisch erbij gezocht.</p>
+   <button id="sload">Sensoren ophalen</button>
+   <p id="smsg2" role="status"></p>
+   <div id="slink"></div>
+   <ul id="slist"></ul>
+  </div>
+
+  <div class="card">
    <h2>Wachtwoord opnieuw instellen</h2>
    <p>Als Joshua of Lorenzo zijn wachtwoord kwijt is. Hij wordt overal uitgelogd.</p>
    <label for="rn">Account</label>
@@ -146,6 +155,33 @@ $('#csave').onclick=async()=>{const r=await api('PUT','/api/cf/token',{token:$('
 $('#gsave').onclick=async()=>{const r=await api('PUT','/api/google/config',{id:$('#gi').value,secret:$('#gs').value});
  say('#gmsg',r.ok?'Opgeslagen. Ga naar het tabblad Agenda om de agenda te koppelen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');
  if(r.ok){$('#gs').value='';say('#gst','Client-ID en geheim zijn opgeslagen op de server.')}};
+const SOORT={motion:'Beweging',temperature:'Temperatuur',illuminance:'Licht',battery:'Batterij'};
+let SD=null;
+function sdraw(){
+ if(!SD)return;
+ const mo=SD.items.filter(x=>x.soort==='motion'&&!/^binary_sensor\..*_\d+$/.test(x.id)||x.soort==='motion');
+ const by=Object.fromEntries(SD.items.map(x=>[x.id,x]));
+ $('#slink').innerHTML=SD.rooms.map(r=>{const l=SD.links[r.id]||{};
+  const opts='<option value="">Geen sensor</option>'+mo.map(x=>`<option value="${esc(x.id)}" ${l.m===x.id?'selected':''}>${esc(x.naam)} (${esc(x.id)})</option>`).join('');
+  const info=l.m?['m','t','lx','bat'].map(k=>{const e=l[k]&&by[l[k]];return e?`${k==='m'?'Beweging':SOORT[{t:'temperature',lx:'illuminance',bat:'battery'}[k]]}: ${esc(e.staat)}${e.eenheid?' '+esc(e.eenheid):''}`:null}).filter(Boolean).join(' · '):'';
+  return `<div style="margin:10px 0"><label>${esc(r.naam)}</label><select data-r="${esc(r.id)}" class="srm">${opts}</select><small style="color:var(--mute)">${info}</small></div>`}).join('');
+ $('#slist').innerHTML=SD.items.map(x=>`<li><span>${esc(x.naam)}<br><small style="color:var(--mute)">${esc(x.id)} · ${SOORT[x.soort]}${x.klasse?' · '+esc(x.klasse):''}</small></span><span>${esc(x.staat)}${x.eenheid?' '+esc(x.eenheid):''}</span></li>`).join('');
+}
+async function sload(){
+ say('#smsg2','Ophalen…');
+ const r=await api('GET','/api/ha/sensors');
+ if(!r.ok)return say('#smsg2',r.j.error||'Mislukt','err');
+ SD=r.j;
+ say('#smsg2',SD.items.length?SD.items.length+' sensoren gevonden, waarvan '+SD.items.filter(x=>x.soort==='motion').length+' beweging.':'Geen sensoren gevonden. Zijn de Hue-sensoren in Home Assistant toegevoegd?',SD.items.length?'ok':'err');
+ sdraw();
+}
+$('#sload').onclick=sload;
+$('#slink').onchange=async e=>{const t=e.target;if(!t.classList.contains('srm'))return;
+ const r=await api('PUT','/api/ha/sensors',{room:t.dataset.r,m:t.value});
+ if(!r.ok)return say('#smsg2',r.j.error||'Mislukt','err');
+ SD.links=SD.links||{};if(r.j.link)SD.links[t.dataset.r]=r.j.link;else delete SD.links[t.dataset.r];
+ const l=r.j.link;say('#smsg2',l?'Gekoppeld. Gevonden bij dit apparaat: '+['t','lx','bat'].filter(k=>l[k]).map(k=>({t:'temperatuur',lx:'licht',bat:'batterij'}[k])).join(', ')+(['t','lx','bat'].every(k=>l[k])?'.':' (de rest is niet gevonden, kijk in de lijst hieronder).'):'Ontkoppeld.','ok');
+ sdraw()};
 $('#rsave').onclick=async()=>{const r=await api('POST','/api/admin/reset',{name:$('#rn').value,password:$('#rp').value});
  say('#rmsg',r.ok?'Wachtwoord van '+$('#rn').value+' is ingesteld.':(r.j.error||'Mislukt'),r.ok?'ok':'err');if(r.ok)$('#rp').value=''};
 $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{password:$('#ap').value});
