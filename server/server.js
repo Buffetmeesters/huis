@@ -129,7 +129,7 @@ async function bankSync() {
           const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === bsrc && (x.d === d || x.d === bd) && x.a === a && x.t === type);
           const key = (cp || om.slice(0, 30)).toLowerCase();
           if (man) { man.ref = ref; man.k = key; have.add(ref); continue; }
-          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, x: (b.set.skipK && b.set.skipK[key.slice(0, 60)]) || /spaar/i.test(cp + ' ' + om) ? 1 : undefined, tm: ex.tm || undefined, bd: d !== bd ? bd : undefined, by: 'bank', at: Date.now() });
+          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, l: ((b.loans || []).some(l => l.id === (b.set.loanK || {})[key.slice(0, 60) + '|' + type]) ? b.set.loanK[key.slice(0, 60) + '|' + type] : undefined), x: (b.set.skipK && b.set.skipK[key.slice(0, 60)]) || /spaar/i.test(cp + ' ' + om) ? 1 : undefined, tm: ex.tm || undefined, bd: d !== bd ? bd : undefined, by: 'bank', at: Date.now() });
           have.add(ref); added++;
         }
         ck = j.continuation_key || ''; pages++;
@@ -422,7 +422,13 @@ http.createServer(async (req, res) => {
       }
       if (p === '/api/boek/tx' && req.method === 'PUT') {
         const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
-        if (b.l !== undefined) { if (!b.l) delete t.l; else if (d.loans.some(l => l.id === String(b.l))) t.l = String(b.l); else return json(res, 404, { error: 'Lening niet gevonden' }); save(d); return json(res, 200, { ok: true, ...d }); }
+        if (b.l !== undefined) {
+          d.set.loanK = d.set.loanK || {};
+          if (!b.l) { delete t.l; if (t.k) delete d.set.loanK[t.k + '|' + t.t]; }
+          else if (d.loans.some(l => l.id === String(b.l))) { t.l = String(b.l); if (t.k) { d.set.loanK[t.k + '|' + t.t] = t.l; d.tx.forEach(o => { if (o.k === t.k && o.t === t.t && !o.l) o.l = t.l; }); } }
+          else return json(res, 404, { error: 'Lening niet gevonden' });
+          save(d); return json(res, 200, { ok: true, ...d });
+        }
         if (typeof b.x === 'boolean') {
           d.set.skipK = d.set.skipK || {};
           if (t.k) { if (b.x) d.set.skipK[t.k] = 1; else delete d.set.skipK[t.k]; d.tx.forEach(o => { if (o.k === t.k) { if (b.x) o.x = 1; else delete o.x; } }); }
