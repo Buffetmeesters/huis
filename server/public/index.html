@@ -89,6 +89,7 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 .shell{display:block}
 .rail{display:none}
 .bento{display:block}
+#hal,header .seg{display:none!important}
 .ovg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch}.ovg>div{min-width:0;display:flex;flex-direction:column}.ovg>div>.card{flex:1}.tg{display:grid;gap:10px;flex:1}.tg>.card{height:auto}
 @media(max-width:720px){.ovg{grid-template-columns:1fr;gap:0}}
 .film{margin-bottom:16px}
@@ -329,7 +330,7 @@ function pushAll(){S.rooms.forEach(r=>r.lights.forEach((l,i)=>{if(!l.e)return;co
  LAST[k]={on:!!l.on,b:l.b};
  fetch('/api/light',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,i,on:!!l.on,b:l.b})}).then(x=>{if(!x.ok)pollLights(true)}).catch(()=>{})}))}
 let polling=false;
-let GON=false;
+let GON=false,ADM='';
 let MEI=null;
 function guestUI(){const adm=!!(MEI&&MEI.admin&&!GUEST),sg=document.querySelector('.seg'),w=document.getElementById('welkom');if(sg)sg.style.display=adm?'':'none';if(w){w.style.display=MEI&&!GUEST?'':'none';w.textContent=MEI&&MEI.name?'Welkom '+MEI.name:''}if(!adm&&S.role==='guest'&&!GUEST){S.role='owner'}}
 async function gtoggle(){try{const r=await fetch('/api/guests/enabled',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({on:!GON})});const j=await r.json();if(!r.ok){toast(j.error||'Mislukt');return}GON=!!j.on;guestUI();toast(GON?'Gasttoegang staat aan':'Gasttoegang staat uit')}catch(e){toast('Geen verbinding met de server')}render()}
@@ -585,7 +586,7 @@ apparaten(){
  if((S.dev||[]).some(d=>!d.nu))h+='<p><button class="btn alt" data-act="dvall">Alle andere apparaten uitloggen</button></p>';
  h+='<h2>Als app op de tablet of telefoon</h2><div class="card"><div class="name">Op het startscherm zetten</div><div class="state">Open huis.huizecpvh.nl in Chrome, tik op de drie puntjes rechtsboven en kies Toevoegen aan startscherm of App installeren. Daarna opent het dashboard schermvullend, zonder adresbalk, met het familielogo.</div></div>';
  return h},
-meer(){return `<h2>Meer</h2><div class="mgrid">${VL.filter(x=>!['overzicht','home','agenda','taken'].includes(x[0])).map(([k,n])=>`<button class="mt" data-view="${k}"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></span>${n}</button>`).join('')}</div>`},
+meer(){return `<h2>Meer</h2><div class="mgrid">${VL.filter(x=>!['overzicht','home','agenda','taken'].includes(x[0])).map(([k,n])=>`<button class="mt" data-view="${k}"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></span>${n}</button>`).join('')}${ADM&&S.role==='owner'?`<a class="mt" href="/admin" style="text-decoration:none"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg></span>${ADM}</a>`:''}</div>`},
 notities(){
  if(S.role!=='owner'){const L=myNotes();return guestBar()+'<h2>Notities</h2>'+(L.length?L.map(n=>`<div class="card item"><div class="name">${esc(n.t)}</div><div class="state">Van ${esc(n.by)}, ${n.d}</div><p style="white-space:pre-line">${esc(n.x)}</p></div>`).join(''):'<p class="state">Geen notities voor jou.</p>')}
  let h=`<h2>Notities</h2><p class="state">Joshua en Lorenzo zien altijd alle notities. Kies zelf wie een notitie verder mag lezen.</p>`;
@@ -710,7 +711,7 @@ function render(){
  if(!rl().some(x=>x.id===S.room)&&rl()[0])S.room=rl()[0].id;
  const vl=owner?VL:[VL.find(x=>x[0]==='home'),...(myNotes().length?[VL[VL.length-1]]:[])];
  $('#views').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}">${n}</button>`).join('');
- $('#rail').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg><span>${n}</span></button>`).join('');
+ $('#rail').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg><span>${n}</span></button>`).join('')+(ADM&&S.role==='owner'?`<button type="button" onclick="location.href='/admin'" aria-label="${ADM}" title="${ADM}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg><span>${ADM}</span></button>`:'');
  const nb=owner?['overzicht','home','agenda','taken']:vl.map(x=>x[0]);
  $('#botnav').innerHTML=nb.map(k=>{const n=(VL.find(x=>x[0]===k)||[k,k])[1];return `<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></button>`}).join('')+(owner?`<button data-view="meer" aria-pressed="${!nb.includes(S.view)}" aria-label="Meer" title="Meer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="${IC.meer}"/></svg></button>`:'');
  $('#title').textContent=KIOSK!=null?FL[KIOSK]:owner?'Hoi '+D.me+'!':(G()?'Welkom, '+G().n:'Welkom');
@@ -845,7 +846,7 @@ if(!GUEST)try{const rr=JSON.parse(localStorage.getItem('huis-r'));if(Array.isArr
 D.tasks.forEach((t,k)=>{if(!t.id)t.id='t'+k+'x'+Date.now();if(t.rep===undefined)t.rep=''});if(!D.log)D.log=D.tasks.filter(t=>t.by).map(t=>({tid:t.id,w:t.by,p:t.p,d:iso(0),n:t.n}));resetDue();
 if(!D.afval)D.afval=[];seedAfval();if(!D.addr)D.addr='Frans Staelstraat 29, 5281 CW Boxtel';
 S.rooms.forEach(r=>{r.name=r.name.replace(/\s*\d+\s*m²\s*$/,'')});if(!D.notes)D.notes=[];if(!D.groups)D.groups=[];if(!D.scn)D.scn=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
-if(ME){D.me=ME.name==='Admin'?'Joshua':ME.name;{const h=document.getElementById('hal');if(h&&!GUEST){if(ME.admin){h.style.display=''}else if(ME.canCreateAdmin){h.textContent='Admin instellen';h.style.display=''}}}if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
+if(ME){ADM=ME.admin?'Admin':ME.canCreateAdmin?'Admin instellen':'';D.me=ME.name==='Admin'?'Joshua':ME.name;{const h=document.getElementById('hal');if(h&&!GUEST){if(ME.admin){h.style.display=''}else if(ME.canCreateAdmin){h.textContent='Admin instellen';h.style.display=''}}}if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
 if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'))}}catch(e){}}
 render();
 if(!fromSrv)save();
