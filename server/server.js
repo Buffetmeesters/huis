@@ -103,8 +103,10 @@ function filterForGuest(d, gid) {
   const out = { ...d };
   out.guests = g ? [{ ...g, code: undefined }] : [];
   out.notes = (d.notes || []).filter(n => (n.to || []).includes(gid));
-  delete out.gcal; delete out.paid; delete out.log; delete out.tasks; delete out.shop; delete out.recipes; delete out.events;
-  out.tasks = []; out.log = []; out.shop = []; out.recipes = []; out.events = []; out.paid = {};
+  delete out.gcal; delete out.paid; delete out.log; delete out.recipes; delete out.events;
+  const m = (g && g.mod) || {};
+  out.tasks = m.taken ? (d.tasks || []) : []; out.shop = m.shop ? (d.shop || []) : []; out.afval = m.afval ? (d.afval || []) : [];
+  out.log = []; out.recipes = []; out.events = []; out.paid = {};
   return out;
 }
 

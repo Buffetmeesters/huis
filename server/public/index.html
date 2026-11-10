@@ -234,7 +234,6 @@ body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
  <div class="grow"></div>
  <a class="chip" id="hal" href="/admin" style="text-decoration:none;display:none">Admin</a>
  <button class="chip" id="logout" type="button">Uitloggen</button>
- <span class="chip" id="welkom" style="pointer-events:none;display:none"></span>
  <div class="seg" role="group" aria-label="Weergave"><button data-role="owner" aria-pressed="true">Eigenaar</button><button data-role="guest" aria-pressed="false">Gast</button></div>
 </header>
 <nav class="tabs" id="views" aria-label="Onderdelen"></nav>
@@ -298,6 +297,7 @@ recipes:[{n:'Pasta pesto',m:20,i:'250 g pasta\n1 pot pesto\nPijnboompitten\nParm
 const VL=[['overzicht','Overzicht'],['home','Huis'],['agenda','Agenda'],['taken','Taken'],['boodschappen','Boodschappen'],['afval','Afval'],['recepten','Recepten'],['ruimtes','Ruimtes'],['groepen','Groepen en scènes'],['gasten','Gasten'],['apparaten','Apparaten'],['notities','Notities']];
 const myNotes=()=>{const g=G();return g&&!exp(g)?D.notes.filter(n=>n.to.includes(g.id)):[]};
 const exp=g=>g.until&&g.until<iso(0);
+const GM=()=>{const g=G();if(!g||exp(g))return[];const m=g.mod||{};return[['afval','Afval','afval'],['taken','Taken','taken'],['boodschappen','Boodschappen','shop']].filter(x=>m[x[2]])};
 const G=()=>S.role==='guest'?D.guests.find(g=>g.id===S.pg)||null:null;
 const PN={licht:'Licht',sfeer:'Sfeer',muziek:'Muziek',klimaat:'Klimaat',film:'Film'};
 const KS=id=>{const r=S.rooms.find(x=>x.id===id);return Object.keys(PN).filter(k=>!r.own&&(k!=='muziek'||r.sp)&&(k!=='klimaat'||r.ce)&&(k!=='film'||id==='woon'))};
@@ -332,7 +332,7 @@ function pushAll(){S.rooms.forEach(r=>r.lights.forEach((l,i)=>{if(!l.e)return;co
 let polling=false;
 let GON=false,ADM='';
 let MEI=null;
-function guestUI(){const adm=!!(MEI&&MEI.admin&&!GUEST),sg=document.querySelector('.seg'),w=document.getElementById('welkom');if(sg)sg.style.display=adm?'':'none';if(w){w.style.display=MEI&&!GUEST?'':'none';w.textContent=MEI&&MEI.name?'Welkom '+MEI.name:''}}
+function guestUI(){const adm=!!(MEI&&MEI.admin&&!GUEST),sg=document.querySelector('.seg'),w=null;if(sg)sg.style.display=adm?'':'none';if(w){w.style.display=MEI&&!GUEST?'':'none';w.textContent=MEI&&MEI.name?'Welkom '+MEI.name:''}}
 async function gtoggle(){try{const r=await fetch('/api/guests/enabled',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({on:!GON})});const j=await r.json();if(!r.ok){toast(j.error||'Mislukt');return}GON=!!j.on;guestUI();toast(GON?'Gasttoegang staat aan':'Gasttoegang staat uit')}catch(e){toast('Geen verbinding met de server')}render()}
 const fmtM=ms=>ms?new Date(ms).toLocaleString('nl-NL',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'onbekend';
 async function loadDev(){S.devBusy=true;try{const r=await fetch('/api/sessions');const j=await r.json();S.dev=r.ok?j.sessions:[]}catch(e){S.dev=[]}S.devBusy=false;if(S.view==='apparaten')render()}
@@ -486,11 +486,11 @@ function festNow(now){const y=now.getFullYear(),t0=new Date(y,now.getMonth(),now
  const md=(now.getMonth()+1)*100+now.getDate();
  return md>=320&&md<621?{ico:'🌷',t:'Lente'}:md>=621&&md<922?{ico:'🌻',t:'Zomer'}:md>=922&&md<1221?{ico:'🍂',t:'Herfst'}:{ico:'❄️',t:'Winter'}}
 
-function floorsPage(){const fls=FL.map((n,f)=>({n,f,rs:rl().filter(r=>r.f===f)})).filter(x=>x.rs.length);
+function floorsPage(){const fls=FL.map((n,f)=>({n,f,rs:rl().filter(r=>r.f===f&&(S.role==='owner'||can('licht',r.id)))})).filter(x=>x.rs.length);
  const extra=S.role==='owner'?'':'';
  return skyHTML()+`<h2>Verdiepingen</h2><div class="ftgrid">`+fls.map(x=>{const ls=x.rs.flatMap(r=>r.lights),aan=ls.filter(l=>l.on).length,t=x.rs.filter(r=>r.ce&&r.c&&r.c.cur!=null);
-  return `<button class="ft ${aan?'on':''}" data-act="gofl" data-f="${x.f}"><span class="ico">${svgI(x.f===0?RI.huis:RI.trap)}</span><span class="ftn">${esc(x.n)}</span><span class="state">${x.rs.length} ${x.rs.length===1?'ruimte':'ruimtes'}${ls.length?' · '+aan+' '+(aan===1?'lamp':'lampen')+' aan':''}${t.length?' · '+String((t.reduce((a,r)=>a+r.c.cur,0)/t.length).toFixed(1)).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`+(S.role==='owner'?huisTiles():'')}
-function floorPage(f){const rs=rl().filter(r=>r.f===f),kb=KIOSK!=null,lit=rs.some(r=>r.lights.some(l=>l.on));
+  return `<button class="ft ${aan?'on':''}" data-act="gofl" data-f="${x.f}"><span class="ico">${svgI(x.f===0?RI.huis:RI.trap)}</span><span class="ftn">${esc(x.n)}</span><span class="state">${x.rs.length} ${x.rs.length===1?'ruimte':'ruimtes'}${ls.length?' · '+aan+' '+(aan===1?'lamp':'lampen')+' aan':''}${t.length?' · '+String((t.reduce((a,r)=>a+r.c.cur,0)/t.length).toFixed(1)).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`+(S.role==='owner'?huisTiles():(GM().length?`<h2>Meer</h2><div class="ftgrid">`+GM().map(x=>`<button class="ft" data-view="${x[0]}"><span class="ftn">${x[1]}</span></button>`).join('')+`</div>`:''))}
+function floorPage(f){const rs=rl().filter(r=>r.f===f&&(S.role==='owner'||can('licht',r.id))),kb=KIOSK!=null,lit=rs.some(r=>r.lights.some(l=>l.on));
  return (kb?skyHTML():`<button class="back" data-act="goback">‹ Huis</button><h2 style="margin-top:6px">${esc(FL[f]||'')}</h2>`)+(S.role==='owner'&&lit||kb&&lit?`<div class="alloff"><button class="btn alt" data-act="flalloff" data-f="${f}">Alle lampen op deze verdieping uit</button></div>`:'')+`<div class="ftgrid">`+rs.map(r=>{const n=r.lights.filter(l=>l.on).length,t=r.ce&&r.c&&r.c.cur!=null;
   return `<button class="rt ${n?'on':''}" data-act="gort" data-r="${r.id}"><span class="ico">${svgI(roomIco(r))}</span><span class="ftn">${esc(r.name)}</span><span class="state">${r.lights.length?(n?n+' van '+r.lights.length+' aan':'Alles uit'):'Geen lampen'}${t?' · '+String(r.c.cur).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`}
 const VIEWS={
@@ -602,6 +602,7 @@ gasten(){const gl=(D.guests||[]).filter(g=>!exp(g));
  const P=[['licht','Lampen'],['sfeer','Sfeer'],['muziek','Muziek'],['klimaat','Temperatuur en airco'],['film','Film kijken']];
  D.guests.forEach((g,i)=>{h+=`<details class="card item" ${S.og===g.id?'open':''}><summary class="name">${esc(g.n)} <span class="state">${exp(g)?'verlopen':g.until?'tot '+g.until:'geen einddatum'}</span></summary>
 ${FL.map((fn,f)=>`<div class="state" style="margin-top:10px">${fn}</div>`+S.rooms.filter(r=>r.f===f&&!r.own).map(r=>{const p=(g.rp||{})[r.id]||{},ks=KS(r.id);return `<div class="row" style="margin:6px 0;flex-wrap:wrap"><span>${r.name}</span><span class="chips"><button class="chip" data-act="gperm" data-i="${i}" data-r="${r.id}" data-k="*" aria-pressed="${ks.every(k=>p[k])}">Alles</button>${ks.map(k=>`<button class="chip" data-act="gperm" data-i="${i}" data-r="${r.id}" data-k="${k}" aria-pressed="${!!p[k]}">${PN[k]}</button>`).join('')}</span></div>`}).join('')).join('')}
+<div class="state" style="margin-top:10px">Modules</div><div class="chips">${[['afval','Afvalwijzer'],['taken','Takenlijst'],['shop','Boodschappen']].map(([k,n])=>`<button class="chip" data-act="gmod" data-i="${i}" data-k="${k}" aria-pressed="${!!(g.mod||{})[k]}">${n}</button>`).join('')}</div>
 <div class="state" style="margin-top:10px">Toegang tot en met</div><div class="mini"><input type="date" value="${g.until}" data-act="guntil" data-i="${i}" aria-label="Einddatum"></div>
 <div class="state" style="margin-top:10px">Toegangscode (demo)</div><div class="big" style="font-size:1.4rem">${g.code}</div>
 <div class="mini"><button class="btn alt" data-act="gcode" data-i="${i}">Nieuwe code</button><button class="btn alt" data-act="gdel" data-i="${i}">Verwijder gast</button></div></details>`});
@@ -659,6 +660,7 @@ function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{val
  else if(a==='pay')D.paid[t.dataset.k]=!D.paid[t.dataset.k];
  else if(a==='pg')S.pg=t.dataset.k;
  else if(a==='gadd'){if(v('gn')){const g={id:'g'+Date.now(),n:v('gn'),until:v('gu'),code:cd(),rp:{woon:{licht:1,sfeer:1,muziek:1,klimaat:1},keuken:{licht:1,sfeer:1}}};D.guests.push(g);S.og=g.id}}
+ else if(a==='gmod'){const g=D.guests[i],k=t.dataset.k;g.mod=g.mod||{};g.mod[k]=g.mod[k]?0:1;S.og=g.id}
  else if(a==='gperm'){const g=D.guests[i],r=t.dataset.r,k=t.dataset.k;g.rp=g.rp||{};const p=g.rp[r]=g.rp[r]||{};if(k==='*'){const on=!KS(r).every(x=>p[x]);KS(r).forEach(x=>p[x]=on?1:0)}else p[k]=p[k]?0:1;S.og=g.id}
  else if(a==='groom'){const g=D.guests[i],k=t.dataset.k;g.rooms=g.rooms.includes(k)?g.rooms.filter(x=>x!==k):[...g.rooms,k];S.og=g.id}
  else if(a==='gcode'){D.guests[i].code=cd();S.og=D.guests[i].id}
@@ -709,9 +711,9 @@ function render(){
  if(KIOSK!=null){S.view='home';S.fl=KIOSK}
  const owner=S.role==='owner';
  $('#sub').textContent=owner?'Eigenaarsweergave: alles zichtbaar':'Gastenweergave: alleen wat jullie toestaan';
- if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;S.view=(S.view==='notities'&&myNotes().length)?'notities':'home'}
+ if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;const gm=GM();S.view=(S.view==='notities'&&myNotes().length)||(gm.some(x=>x[0]===S.view))?S.view:'home'}
  if(!rl().some(x=>x.id===S.room)&&rl()[0])S.room=rl()[0].id;
- const vl=owner?VL:[VL.find(x=>x[0]==='home'),...(myNotes().length?[VL[VL.length-1]]:[])];
+ const vl=owner?VL:[VL.find(x=>x[0]==='home'),...GM().map(x=>VL.find(v=>v[0]===x[0])),...(myNotes().length?[VL[VL.length-1]]:[])];
  $('#views').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}">${n}</button>`).join('');
  $('#rail').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg><span>${n}</span></button>`).join('')+(ADM&&S.role==='owner'?`<button type="button" onclick="location.href='/admin'" aria-label="${ADM}" title="${ADM}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg><span>${ADM}</span></button>`:'');
  const nb=owner?['overzicht','home','agenda','taken']:vl.map(x=>x[0]);
@@ -722,7 +724,7 @@ function render(){
  $('#tabs').innerHTML=FL.map((fn,f)=>{const q=rl().filter(r=>r.f===f);return q.length?`<div class="fl">${fn}</div>`+q.map(r=>`<button data-room="${r.id}" aria-pressed="${r.id===S.room}">${r.name}</button>`).join(''):''}).join('');
  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.role===S.role));
  const r=cur();
- if(!owner&&S.view!=='notities'&&(!G()||exp(G())||!rl().length)){$('#main').innerHTML=guestBar()+'<div class="card"><div class="name">Geen toegang</div><div class="state">'+(G()&&exp(G())?'De toegang van deze gast is verlopen.':'Voor deze gast staan geen kamers aan.')+'</div></div>';return}
+ if(!owner&&S.view!=='notities'&&!GM().some(x=>x[0]===S.view)&&(!G()||exp(G())||!rl().length)){$('#main').innerHTML=guestBar()+'<div class="card"><div class="name">Geen toegang</div><div class="state">'+(G()&&exp(G())?'De toegang van deze gast is verlopen.':'Voor deze gast staan geen kamers aan.')+'</div></div>';return}
  if(S.view!=='home'){$('#main').innerHTML=VIEWS[S.view]();return}
  if(S.view==='home'&&!S.rm){$('#main').innerHTML=guestBar()+(S.fl==null?floorsPage():floorPage(S.fl));return}
  const nL=r.lights.length,aL=r.lights.filter(l=>l.on).length;
