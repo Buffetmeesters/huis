@@ -88,6 +88,14 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card">
+   <h2>Film kijken</h2>
+   <p>Kies welke lampen dimmen en welke Sync Box-onderdelen aan gaan als je op Film kijken drukt. Bij Film afgelopen gaan de lampen terug naar hoe ze stonden en de Sync Box uit.</p>
+   <button id="fload">Lampen en Sync Box ophalen</button>
+   <p id="fmsg" role="status"></p>
+   <div id="fform"></div>
+  </div>
+
+  <div class="card">
    <h2>Sensoren (Hue-beweging)</h2>
    <p>Haalt alle bewegings-, temperatuur-, licht- en batterijsensoren op zoals Home Assistant ze nu doorgeeft. Kies per ruimte de bewegingssensor; temperatuur, licht en batterij van hetzelfde apparaat worden automatisch erbij gezocht.</p>
    <button id="sload">Sensoren ophalen</button>
@@ -159,6 +167,24 @@ $('#csave').onclick=async()=>{const r=await api('PUT','/api/cf/token',{token:$('
 $('#gsave').onclick=async()=>{const r=await api('PUT','/api/google/config',{id:$('#gi').value,secret:$('#gs').value});
  say('#gmsg',r.ok?'Opgeslagen. Ga naar het tabblad Agenda om de agenda te koppelen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');
  if(r.ok){$('#gs').value='';say('#gst','Client-ID en geheim zijn opgeslagen op de server.')}};
+let FD=null;
+function fdraw(){
+ if(!FD)return;const c=FD.cfg,L=new Set(c.lights),S2=new Set(c.sync);
+ const box=(k,x,on)=>`<label style="display:flex;gap:10px;align-items:center;margin:6px 0;font-weight:400"><input type="checkbox" class="${k}" value="${esc(x.id)}" ${on?'checked':''} style="width:auto"><span>${esc(x.naam)}<br><small style="color:var(--mute)">${esc(x.id)} · ${esc(x.staat)}</small></span></label>`;
+ $('#fform').innerHTML=`<h2>Lampen die dimmen</h2>${FD.lights.map(x=>box('fl',x,L.has(x.id))).join('')||'<p>Geen lampen gevonden.</p>'}<h2>Sync Box en andere schakelaars die aan gaan</h2>${FD.sync.map(x=>box('fs',x,S2.has(x.id))).join('')||'<p>Geen schakelaars of mediaspelers gevonden.</p>'}<label for="fb">Helderheid tijdens de film (0 is uit, 100 is vol)</label><input id="fb" type="number" min="0" max="100" value="${c.bri}"><button id="fsave">Opslaan</button>`;
+}
+async function fload(){
+ say('#fmsg','Ophalen…');
+ const r=await api('GET','/api/ha/film');
+ if(!r.ok)return say('#fmsg',r.j.error||'Mislukt','err');
+ FD=r.j;say('#fmsg',FD.lights.length+' lampen en '+FD.sync.length+' schakelaars of mediaspelers gevonden. Kies hieronder, zoek de Sync Box op naam.','ok');fdraw();
+}
+$('#fload').onclick=fload;
+$('#fform').onclick=async e=>{if(e.target.id!=='fsave')return;
+ const lights=[...document.querySelectorAll('.fl:checked')].map(x=>x.value),sync=[...document.querySelectorAll('.fs:checked')].map(x=>x.value);
+ const r=await api('PUT','/api/ha/film',{lights,sync,bri:$('#fb').value});
+ if(!r.ok)return say('#fmsg',r.j.error||'Mislukt','err');
+ FD.cfg={lights,sync,bri:parseInt($('#fb').value,10)||0};say('#fmsg','Opgeslagen: '+lights.length+' lampen en '+sync.length+' Sync Box-onderdelen.','ok')};
 const SOORT={motion:'Beweging',temperature:'Temperatuur',illuminance:'Licht',battery:'Batterij'};
 let SD=null;
 function sdraw(){

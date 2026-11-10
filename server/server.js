@@ -245,6 +245,46 @@ http.createServer(async (req, res) => {
       try { await haCall(cfg, '/api/services/scene/turn_on', { entity_id: sc.hue }); return json(res, 200, { ok: true }); }
       catch (e) { return json(res, 502, { error: haErr(e) }); }
     }
+    if (p === '/api/film') {
+      const s = session(req);
+      if (!s) return json(res, 401, { error: 'Niet ingelogd' });
+      if (s.role !== 'owner') {
+        const g = findGuest(s.ref);
+        if (!(g && !expired(g) && g.rp && g.rp.woon && g.rp.woon.film)) return json(res, 403, { error: 'Geen toegang tot Film kijken' });
+      }
+      const fc = kvGet('film'), fs0 = kvGet('filmstate');
+      const ready = !!(fc && ((fc.lights && fc.lights.length) || (fc.sync && fc.sync.length)));
+      if (req.method !== 'POST') return json(res, 200, { on: !!(fs0 && fs0.on), ready });
+      const cfg = haCfg(); if (!cfg) return json(res, 400, { error: 'Home Assistant is nog niet ingesteld.' });
+      if (!ready) return json(res, 400, { error: 'Film kijken is nog niet ingesteld. Kies de lampen en de Sync Box op de Admin-pagina.' });
+      const b = JSON.parse(await body(req));
+      const errs = [];
+      const call = async (svc, data) => { try { await haCall(cfg, '/api/services/' + svc, data); return true; } catch (e) { errs.push(haErr(e)); return false; } };
+      try {
+        if (b.on) {
+          if (fs0 && fs0.on) return json(res, 200, { on: true });
+          const st = new Map((await haCall(cfg, '/api/states')).map(e => [e.entity_id, e]));
+          const saved = fc.lights.map(id => { const e = st.get(id); const a = e ? e.attributes : {}; return { id, on: !!e && e.state === 'on', bri: a.brightness || null, mode: a.color_mode || null, k: a.color_temp_kelvin || null, xy: a.xy_color || null }; });
+          kvPut('filmstate', { on: true, saved, at: Date.now() });
+          for (const l of fc.lights) {
+            if (fc.bri <= 0) await call('light/turn_off', { entity_id: l });
+            else if (!(await (async () => { try { await haCall(cfg, '/api/services/light/turn_on', { entity_id: l, brightness_pct: fc.bri, color_temp_kelvin: 2200 }); return true; } catch { return false; } })())) await call('light/turn_on', { entity_id: l, brightness_pct: fc.bri });
+          }
+          for (const x of fc.sync) await call('homeassistant/turn_on', { entity_id: x });
+        } else {
+          for (const x of fc.sync) await call('homeassistant/turn_off', { entity_id: x });
+          for (const l of (fs0 && fs0.saved) || []) {
+            if (!l.on) { await call('light/turn_off', { entity_id: l.id }); continue; }
+            const d = { entity_id: l.id };
+            if (l.bri) d.brightness = l.bri;
+            if (l.mode === 'color_temp' && l.k) d.color_temp_kelvin = l.k; else if (l.xy) d.xy_color = l.xy;
+            if (!(await (async () => { try { await haCall(cfg, '/api/services/light/turn_on', d); return true; } catch { return false; } })())) await call('light/turn_on', { entity_id: l.id, brightness: l.bri || 255 });
+          }
+          kvDel('filmstate');
+        }
+      } catch (e) { errs.push(haErr(e)); }
+      return json(res, errs.length ? 502 : 200, errs.length ? { error: errs[0], on: !!b.on } : { on: !!b.on });
+    }
     if (p === '/api/sensors') {
       const s = session(req);
       if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
@@ -618,6 +658,24 @@ http.createServer(async (req, res) => {
             return json(res, 200, { ok: true, link: l });
           }
           return json(res, 200, { items, links, rooms: roomList().map(r => ({ id: r.id, naam: r.name })) });
+        }
+        if (p === '/api/ha/film') {
+          const all = await ha('/api/states');
+          const nm = e => e.attributes.friendly_name || e.entity_id;
+          if (req.method === 'PUT') {
+            const b = JSON.parse(await body(req));
+            const ids = new Set(all.map(e => e.entity_id));
+            const lights = (Array.isArray(b.lights) ? b.lights : []).filter(x => /^light\.[\w]+$/.test(x) && ids.has(x)).slice(0, 40);
+            const sync = (Array.isArray(b.sync) ? b.sync : []).filter(x => /^(media_player|switch|remote|light|input_boolean)\.[\w]+$/.test(x) && ids.has(x)).slice(0, 8);
+            const bri = Math.max(0, Math.min(100, parseInt(b.bri, 10) || 0));
+            kvPut('film', { lights, sync, bri });
+            return json(res, 200, { ok: true });
+          }
+          return json(res, 200, {
+            cfg: kvGet('film') || { lights: [], sync: [], bri: 10 },
+            lights: all.filter(e => e.entity_id.startsWith('light.')).map(e => ({ id: e.entity_id, naam: nm(e), staat: e.state })),
+            sync: all.filter(e => /^(media_player|switch|remote|input_boolean)\./.test(e.entity_id)).map(e => ({ id: e.entity_id, naam: nm(e), staat: e.state }))
+          });
         }
         if (p === '/api/ha/entities') {
           const all = await ha('/api/states');

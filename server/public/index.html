@@ -326,6 +326,13 @@ function pushAll(){S.rooms.forEach(r=>r.lights.forEach((l,i)=>{if(!l.e)return;co
  LAST[k]={on:!!l.on,b:l.b};
  fetch('/api/light',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,i,on:!!l.on,b:l.b})}).then(x=>{if(!x.ok)pollLights(true)}).catch(()=>{})}))}
 let polling=false;
+let filmBusy=false;
+async function filmToggle(){if(filmBusy)return;filmBusy=true;const want=!S.film;S.film=want;render();
+ try{const r=await fetch('/api/film',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({on:want})});const j=await r.json().catch(()=>({}));
+  if(!r.ok){S.film=!want;toast(j.error||'Film kijken lukte niet');if(j.on!==undefined)S.film=j.on}
+  else toast(want?'Film kijken staat aan':'Film is afgelopen, alles staat weer terug')}
+ catch(e){S.film=!want;toast('Geen verbinding met de server')}
+ filmBusy=false;render();pollLights(true)}
 async function pollLights(force){if(polling||document.hidden&&!force)return;polling=true;
  try{const r=await fetch('/api/lights');if(r.status===401){location.reload();return}if(r.status!==200)return;const j=(await r.json()).lights||{};let ch=false;
   S.rooms.forEach(rm=>rm.lights.forEach((l,i)=>{const k=rm.id+':'+i,v=j[k];if(!v)return;
@@ -340,6 +347,7 @@ async function pollLights(force){if(polling||document.hidden&&!force)return;poll
     if(c.air!==air||c.set!==set||c.cur!==v.cur)ch=true;
     c.air=air;c.set=set;if(v.cur!=null)c.cur=v.cur;c.min=v.min;c.max=v.max;c.step=v.step;c.mode=v.mode;c.modes=v.modes||[];c.fan=v.fan;c.fans=v.fans||[];c.swing=v.swing;c.swings=v.swings||[];LASTC[rm.id]={set,air}})}}catch(e){}
   if(S.role==='owner')try{const rs=await fetch('/api/sensors');if(rs.status===200){const nj=JSON.stringify((await rs.json()).sensors||{});const o=JSON.parse(nj);if(JSON.stringify(S.sens||{})!==nj)ch=true;S.sens=o}}catch(e){}
+  if(!filmBusy)try{const rf=await fetch('/api/film');if(rf.status===200){const jf=await rf.json();if(!!jf.on!==!!S.film){S.film=!!jf.on;ch=true}S.filmReady=jf.ready}}catch(e){}
   const a=document.activeElement;if(ch&&!(a&&a.type==='range')&&!window.__drag)render()}catch(e){}finally{polling=false}}
 const LASTC={},CT={},HOLD={};
 function toast(t){let d=document.getElementById('toast');if(!d){d=document.createElement('div');d.id='toast';d.setAttribute('role','status');d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:110px;max-width:90vw;background:#2b2b3a;color:#fff;padding:12px 16px;border-radius:14px;z-index:99;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:.9rem';document.body.appendChild(d)}d.textContent=t;d.style.display='block';clearTimeout(d._t);d._t=setTimeout(()=>{d.style.display='none'},7000)}
@@ -680,7 +688,7 @@ function render(){
  const nL=r.lights.length,aL=r.lights.filter(l=>l.on).length;
  const back=`<button class="back" data-act="goback2">‹ ${FL[r.f]}</button>`;
  const hero=`<div class="hero"><div class="state" style="position:relative;z-index:1">${FL[r.f]}</div><div class="hh" style="position:relative;z-index:1">${esc(r.name)}</div><div class="hs">${can('licht')&&nL?`<span>${aL} van ${nL} ${nL===1?'lamp':'lampen'} aan</span>`:''}${can('klimaat')&&r.cl?`<span>${String(curT(r)).replace('.',',')}° binnen</span>`:''}</div></div>`;
- const film=can('film')&&r.id==='woon'?`<div class="card film ${S.film?'active':''}"><div><div class="name">Film kijken</div><div class="state">${S.film?'Sync box actief, woonkamer gedimd, muziek gepauzeerd':'Start de Hue Sync Box en dim de woonkamer'}</div></div><button class="btn" data-act="film">${S.film?'Stop film':'Start film'}</button></div>`:'';
+ const film=can('film')&&r.id==='woon'?`<div class="card film ${S.film?'active':''}"><div><div class="name">Film kijken</div><div class="state">${S.film?'Sync Box aan en de lampen gedimd':'Start de Hue Sync Box en dim de woonkamer'}</div></div><button class="btn" data-act="film">${S.film?'Stop film':'Start film'}</button></div>`:'';
  let L='',Rr='',X='';
  if(can('licht')&&r.lights.length){
   const aan=r.lights.filter(l=>l.on),avg=aan.length?Math.round(aan.reduce((a,l)=>a+l.b,0)/aan.length):0;
@@ -721,10 +729,7 @@ document.addEventListener('click',e=>{
  if(a==='play'){S.media.playing=!S.media.playing;S.media.track=S.media.playing?'Speellijst: Zondagmiddag':'Gepauzeerd'}
  if(a==='tp'||a==='tm'){const c=S.clim,st=c.step||1;c.set=Math.max(c.min??15,Math.min(c.max??28,+(c.set+(a==='tp'?st:-st)).toFixed(1)))}
  if(a==='air')S.clim.air=!S.clim.air;
- if(a==='film'){S.film=!S.film;const w=S.rooms[0];
-  if(S.film){w.lights.forEach(l=>{l.on=false});S.media.playing=false;S.media.track='Gepauzeerd'}
-  else{w.lights.forEach((l,i)=>{l.on=i<2;l.b=[70,45][i]||l.b})}
-  S.scene=null}
+ if(a==='film'){filmToggle();return}
  if(a==='spk'){const sp=S.spk||HAM.map(x=>x.id),k=sp.indexOf(t.dataset.e);S.say=(document.getElementById('say')||{}).value||S.say;k<0?sp.push(t.dataset.e):sp.splice(k,1);S.spk=sp;render();return}
  if(a==='sayspeak'||a==='saycmd'){const text=((document.getElementById('say')||{}).value||'').trim();S.say=text;S.saymsg='Bezig…';render();
   fetch('/api/ha/say',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:a==='saycmd'?'command':'speak',text,targets:S.spk||HAM.map(x=>x.id)})}).then(async x=>{const j=await x.json().catch(()=>({}));S.saymsg=x.ok?(a==='saycmd'?'Opdracht verstuurd.':'Bericht verstuurd naar '+j.speakers+' speaker(s).'):(j.error||'Mislukt');if(x.ok)S.say='';render()}).catch(()=>{S.saymsg='Geen verbinding met de server.';render()});return}
