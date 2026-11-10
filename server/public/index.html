@@ -541,8 +541,8 @@ ${r.lights.map((l,j)=>`<div class="mini"><input style="flex:1" data-act="lname" 
  return h+`<h2>Ruimte toevoegen</h2><div class="card form"><input id="rnn" placeholder="Naam van de ruimte"><select id="rnf">${FL.map((n,k)=>`<option value="${k}">${n}</option>`).join('')}</select><button class="btn" data-act="roomadd">Ruimte toevoegen</button></div>`},
 afval(){const L=upAfval(12),all=(D.afval||[]).length;
  let h=`<h2>Afvalwijzer</h2><div class="card"><div class="name">${esc(D.addr)}</div><div class="state">Ophaaldata uit de jaarkalender 2026 (versie van 5 november 2026). Controleer mijnafvalwijzer.nl regelmatig op wijzigingen. De kalender voor 2027 moet je zelf toevoegen zodra hij er is.</div><div class="mini"><a class="btn alt" style="text-decoration:none;display:inline-block" href="https://www.mijnafvalwijzer.nl/nl/5281CW/29/" target="_blank" rel="noopener noreferrer">Open de Afvalwijzer</a></div></div>`;
- h+=`<h2>Eerstvolgende ophaalmomenten</h2>`+(L.length?L.map(e=>{const i=D.afval.indexOf(e);return `<div class="card row item"><div><div class="name">${afvalChip(e)}${atl(e.t)}</div><div class="state">${dagL(e.d)}${e.d===iso(1)?' · zet vanavond de bak buiten':''}</div></div><button class="btn alt" data-act="avdel" data-i="${i}" aria-label="Wis ${atl(e.t)} ${e.d}">Wis</button></div>`}).join(''):'<p class="state">Geen komende ophaalmomenten meer. Voeg hieronder de data van het nieuwe jaar toe.</p>');
- h+=`<h2>Ophaaldata toevoegen</h2><div class="card form"><select id="avt" aria-label="Soort afval">${Object.keys(AT).map(k=>`<option value="${k}">${AT[k][0]}</option>`).join('')}</select><textarea id="avd" rows="4" placeholder="Datums, één per regel of gescheiden door komma's. Bijvoorbeeld 2026-11-17 of 17-11-2026"></textarea><button class="btn" data-act="avadd">Datums toevoegen</button><div class="state">${all} ${all===1?'datum':'datums'} opgeslagen. Verlopen datums worden automatisch niet meer getoond.</div></div><p><button class="btn alt" data-act="avold">Verlopen datums opruimen</button></p>`;
+ h+=`<h2>Eerstvolgende ophaalmomenten</h2>`+(L.length?L.map(e=>{const i=D.afval.indexOf(e);return `<div class="card row item"><div><div class="name">${afvalChip(e)}${atl(e.t)}</div><div class="state">${dagL(e.d)}${e.d===iso(1)?' · zet vanavond de bak buiten':''}${e.by?' · buiten gezet door '+esc(e.by):''}</div></div><div class="mini" style="margin:0"><button class="btn ${e.by?'alt':''}" data-act="avdone" data-i="${i}">${e.by?'Terugzetten':'Bak buiten'}</button>${S.role==='owner'?`<button class="btn alt" data-act="avdel" data-i="${i}" aria-label="Wis ${atl(e.t)} ${e.d}">Wis</button>`:''}</div></div>`}).join(''):'<p class="state">Geen komende ophaalmomenten meer. Voeg hieronder de data van het nieuwe jaar toe.</p>');
+ if(S.role==='owner')h+=`<h2>Ophaaldata toevoegen</h2><div class="card form"><select id="avt" aria-label="Soort afval">${Object.keys(AT).map(k=>`<option value="${k}">${AT[k][0]}</option>`).join('')}</select><textarea id="avd" rows="4" placeholder="Datums, één per regel of gescheiden door komma's. Bijvoorbeeld 2026-11-17 of 17-11-2026"></textarea><button class="btn" data-act="avadd">Datums toevoegen</button><div class="state">${all} ${all===1?'datum':'datums'} opgeslagen. Verlopen datums worden automatisch niet meer getoond.</div></div><p><button class="btn alt" data-act="avold">Verlopen datums opruimen</button></p>`;
  return h},
 overzicht(){resetDue();loadWeather();
  const today=iso(0),hr=new Date().getHours(),hi=hr<6?'Goedenacht':hr<12?'Goedemorgen':hr<18?'Goedemiddag':'Goedenavond';
@@ -631,20 +631,21 @@ taken(){resetDue();
  const pts=D.who.map(w=>[w,sum(w,wk),sum(w,mo)]).sort((a,b)=>b[1]-a[1]||b[2]-a[2]);const max=Math.max(1,pts[0][1]);
  const best=[...pts].sort((a,b)=>b[2]-a[2])[0];
  let h=`<h2>Stand van de week</h2><div class="card">${pts.map(([w,p,m],i)=>`<div class="bar"><span class="name">${w}${i===0&&p>0?' (voorop)':''}</span><div class="track"><i style="width:${p/max*100}%"></i></div><span class="state">${p} pt</span></div>`).join('')}<div class="state" style="margin-top:8px">Deze maand: ${pts.map(([w,p,m])=>w+' '+m).join(', ')}${best&&best[2]>0?'. Voorop: '+best[0]:''}</div></div>`;
- h+=`<h2>Ik ben</h2><div class="chips">${D.who.map(w=>`<button class="chip" data-act="me" data-k="${w}" aria-pressed="${D.me===w}">${w}</button>`).join('')}</div><h2>Taken</h2>`;
+ h+=(S.role==='owner'?`<h2>Ik ben</h2><div class="chips">${D.who.map(w=>`<button class="chip" data-act="me" data-k="${w}" aria-pressed="${D.me===w}">${w}</button>`).join('')}</div>`:'')+`<h2>Taken</h2>`;
  const order=D.tasks.map((t,i)=>i).sort((a,b)=>(D.tasks[a].by?1:0)-(D.tasks[b].by?1:0));
- order.forEach(i=>{const t=D.tasks[i];h+=`<div class="card row item ${t.by?'done':''}"><div><div class="name">${esc(t.n)}</div><div class="state">${t.p} ${t.p>1?'punten':'punt'}${t.rep?' · '+repLabel(t):''}${t.by?', gedaan door '+t.by+(t.next?' · weer aan de beurt op '+fmtD(t.next):''):''}</div></div><div class="mini" style="margin:0"><button class="btn ${t.by?'alt':''}" data-act="tdone" data-i="${i}">${t.by?'Terugzetten':'Klaar'}</button><button class="btn alt" data-act="tdel" data-i="${i}" aria-label="Wis ${esc(t.n)}">Wis</button></div></div>`});
+ order.forEach(i=>{const t=D.tasks[i];h+=`<div class="card row item ${t.by?'done':''}"><div><div class="name">${esc(t.n)}</div><div class="state">${t.p} ${t.p>1?'punten':'punt'}${t.rep?' · '+repLabel(t):''}${t.by?', gedaan door '+t.by+(t.next?' · weer aan de beurt op '+fmtD(t.next):''):''}</div></div><div class="mini" style="margin:0"><button class="btn ${t.by?'alt':''}" data-act="tdone" data-i="${i}" ${S.role!=='owner'&&t.by&&t.by!==(G()||{}).n?'disabled':''}>${t.by?'Terugzetten':'Klaar'}</button>${S.role==='owner'?`<button class="btn alt" data-act="tdel" data-i="${i}" aria-label="Wis ${esc(t.n)}">Wis</button>`:''}</div></div>`});
  if(!D.tasks.length)h+='<p class="state">Nog geen taken.</p>';
  const rp=S.trep||'';
+ if(S.role!=='owner')return h;
  return h+`<h2>Taak toevoegen</h2><div class="card form"><input id="tn" placeholder="Nieuwe taak" value="${esc(S.tn||'')}"><select id="tp" aria-label="Punten">${[1,2,3,5].map(n=>`<option value="${n}" ${String(n)===(S.tpv||'1')?'selected':''}>${n} ${n>1?'punten':'punt'}</option>`).join('')}</select>
 <select id="tr" data-act="trep" aria-label="Herhalen"><option value="">Niet herhalen</option><option value="dag" ${rp==='dag'?'selected':''}>Elke dag</option><option value="week" ${rp==='week'?'selected':''}>Elke week</option><option value="maand" ${rp==='maand'?'selected':''}>Elke maand</option></select>
 ${rp==='week'?`<select id="twd" aria-label="Weekdag">${[1,2,3,4,5,6,0].map(n=>`<option value="${n}">Op ${DN[n]}</option>`).join('')}</select>`:''}
 ${rp==='maand'?`<input id="tdm" type="number" min="1" max="31" value="1" aria-label="Dag van de maand" placeholder="Dag van de maand">`:''}
 <div class="state">${rp?'De taak komt vanzelf terug zodra hij weer aan de beurt is. Punten blijven staan in het scorebord.':'Eenmalige taak.'}</div><button class="btn" data-act="tadd">Toevoegen</button></div><p><button class="btn alt" data-act="tclean">Afgeronde eenmalige taken opruimen</button></p>`},
-boodschappen(){let h=`<h2>Boodschappen</h2><div class="card form"><input id="sn" placeholder="Wat moet er gehaald worden?"><button class="btn" data-act="sadd">Toevoegen</button></div><div style="height:12px"></div>`;
- D.shop.forEach((s,i)=>{h+=`<div class="card row item ${s.g?'done':''}"><button class="chk" data-act="sgot" data-i="${i}" aria-pressed="${!!s.g}" aria-label="Afvinken ${esc(s.n)}"></button><div class="name grow">${esc(s.n)}</div><button class="btn alt" data-act="sdel" data-i="${i}">Wis</button></div>`});
+boodschappen(){let h=`<h2>Boodschappen</h2>`+(S.role==='owner'?`<div class="card form"><input id="sn" placeholder="Wat moet er gehaald worden?"><button class="btn" data-act="sadd">Toevoegen</button></div><div style="height:12px"></div>`:'');
+ D.shop.forEach((s,i)=>{h+=`<div class="card row item ${s.g?'done':''}"><button class="chk" data-act="sgot" data-i="${i}" aria-pressed="${!!s.g}" aria-label="Afvinken ${esc(s.n)}"></button><div class="name grow">${esc(s.n)}</div>${S.role==='owner'?`<button class="btn alt" data-act="sdel" data-i="${i}">Wis</button>`:''}</div>`});
  if(!D.shop.length)h+='<p class="state">De lijst is leeg.</p>';
- return h+`<p><button class="btn alt" data-act="sclear">Afgevinkte verwijderen</button></p>`},
+ return S.role==='owner'?h+`<p><button class="btn alt" data-act="sclear">Afgevinkte verwijderen</button></p>`:h},
 recepten(){let h='<h2>Recepten</h2>';
  D.recipes.forEach((r,i)=>{const L=ING(r),n=L.filter((x,j)=>rsel(i,j)).length;
   h+=`<details class="card item" ${S.or===i?'open':''}><summary class="name">${esc(r.n)} <span class="state">${r.m} min</span></summary>
@@ -655,6 +656,11 @@ ${r.img?`<img src="${r.img}" alt="Foto van ${esc(r.n)}" style="width:100%;max-he
 <div class="mini" style="flex-wrap:wrap"><button class="btn" data-act="rshop" data-i="${i}" ${n?'':'disabled'}>Op boodschappenlijst (${n})</button><label class="btn alt" style="display:inline-block;cursor:pointer">${r.img?'Foto wijzigen':'Foto toevoegen'}<input class="sr" type="file" accept="image/*" data-act="rphoto" data-i="${i}"></label>${r.img?`<button class="btn alt" data-act="rimgdel" data-i="${i}">Foto wissen</button>`:''}<button class="btn alt" data-act="rdel" data-i="${i}">Wis</button></div></details>`});
  return h+`<h2>Recept toevoegen</h2><div class="card form"><input id="rn" placeholder="Naam van het gerecht"><input id="rm" type="number" min="1" placeholder="Minuten"><textarea id="ri" rows="4" placeholder="Ingrediënten, één per regel"></textarea><textarea id="rs" rows="4" placeholder="Bereiding"></textarea><label class="btn alt" style="display:inline-block;cursor:pointer;text-align:center">Foto toevoegen (optioneel)<input class="sr" type="file" accept="image/*" data-act="rnewphoto"></label><img id="rprev" alt="Voorbeeld van de foto" ${S.rimg?`src="${S.rimg}"`:''} style="display:${S.rimg?'block':'none'};width:100%;max-height:220px;object-fit:cover;border-radius:12px"><button class="btn" data-act="radd">Recept opslaan</button></div>`}};
 async function loadHue(){try{const r=await fetch('/api/ha/scenes');const j=await r.json();S.hsc=r.ok?(j.scenes||[]).filter(x=>!(D.scn||[]).some(c=>c.hue===x.id)):[];S.hmsg=r.ok?(S.hsc.length?'':'Geen nieuwe scènes gevonden.'):(j.error||'Mislukt')}catch(e){S.hmsg='Mislukt'}render()}
+function gdoit(a,t){const g=G();if(!g)return;const i=+t.dataset.i;let b;
+ if(a==='tdone'){const k=D.tasks[i];if(!k||(k.by&&k.by!==g.n))return;b={k:'task',id:k.id,next:k.rep?nextDue(k):''};if(!k.by){k.by=g.n;k.next=b.next}else{k.by='';k.next=''}}
+ else if(a==='sgot'){if(!D.shop[i])return;b={k:'shop',i};D.shop[i].g=D.shop[i].g?0:1}
+ else{const e=D.afval[i];if(!e||(e.by&&e.by!==g.n))return;b={k:'afval',t:e.t,d:e.d};if(e.by)delete e.by;else e.by=g.n}
+ fetch('/api/guest/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}).catch(()=>{});render()}
 function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{value:''}).value.trim();
  if(a==='cmap'){const sel=document.getElementById('cmr'+i),q=S.rooms.find(x=>x.id===(sel&&sel.value));if(!q)return true;q.ce=t.dataset.e;q.cl=1;S.redit=1;setTimeout(()=>pollLights(true),700);return true}
  if(a==='hadd'){const h=(S.hsc||[])[i];if(!h)return true;const sel=document.getElementById('hr'+i);(D.scn=D.scn||[]).push({id:'h'+Date.now(),n:h.naam,hue:h.id,room:sel?sel.value:S.rooms[0].id});S.hsc.splice(i,1);return true}
@@ -698,6 +704,7 @@ function act2(a,t){const i=+t.dataset.i,v=id=>(document.getElementById(id)||{val
  else if(a==='ctp'||a==='ctm'||a==='cair'){const c=cc(S.rooms.find(x=>x.id===t.dataset.r));if(a==='cair')c.air=!c.air;else {const st=c.step||1;c.set=Math.max(c.min??15,Math.min(c.max??28,+(c.set+(a==='ctp'?st:-st)).toFixed(1)))}}
  else if(a==='avadd'){const t=v('avt');pdates(v('avd')).forEach(d=>{if(!D.afval.some(e=>e.t===t&&e.d===d))D.afval.push({t,d})})}
  else if(a==='avdel')D.afval.splice(i,1);
+ else if(a==='avdone'){const e=D.afval[i];if(e){if(e.by)delete e.by;else e.by=D.me}}
  else if(a==='avold')D.afval=D.afval.filter(e=>e.d>=iso(0));
  else if(a==='rtog'){const q=S.rooms.find(x=>x.id===t.dataset.r);q[t.dataset.k]=q[t.dataset.k]?0:1;S.redit=1;S.orr=q.id}
  else if(a==='ladd'){const q=S.rooms.find(x=>x.id===t.dataset.r);q.lights.push({n:v('ln_'+q.id)||'Lamp '+(q.lights.length+1),on:false,b:60});S.redit=1;S.orr=q.id}
@@ -771,6 +778,7 @@ document.addEventListener('click',e=>{
  if(t.dataset.room){S.room=t.dataset.room;render();return}
  if(t.dataset.view){S.view=t.dataset.view;if(S.view==='home'){S.fl=null;S.rm=0}render();return}
  const a=t.dataset.act;if(!a)return;
+ if(GUEST&&['tdone','sgot','avdone'].includes(a)){gdoit(a,t);return}
  if(a==='cmsel'||a==='cfan')return;
  if(!['roomdel','grpdel','scndel'].includes(a))S.cd=null;
  if(act2(a,t)){save();pushClim();render();return}

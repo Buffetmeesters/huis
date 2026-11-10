@@ -240,6 +240,29 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    if (p === '/api/guest/act' && req.method === 'POST') {
+      const s = session(req);
+      if (!s || s.role !== 'guest') return json(res, 403, { error: 'Alleen voor gasten' });
+      const g = findGuest(s.ref); const b = JSON.parse(await body(req));
+      const r = q.get.get('data'); const d = r ? JSON.parse(r.v) : null;
+      if (!g || !d) return json(res, 404, { error: 'Niet gevonden' });
+      const m = g.mod || {}; const today = new Date().toISOString().slice(0, 10);
+      if (b.k === 'task' && m.taken) {
+        const t = (d.tasks || []).find(x => x.id === b.id); if (!t) return json(res, 404, { error: 'Taak niet gevonden' });
+        if (!t.by) { t.by = g.n; t.next = t.rep && /^\d{4}-\d\d-\d\d$/.test(b.next || '') ? b.next : ''; d.log = d.log || []; d.log.push({ tid: t.id, w: g.n, p: t.p, d: today, n: t.n }); }
+        else if (t.by === g.n) { t.by = ''; t.next = ''; const x = (d.log || []).map(e => e.tid).lastIndexOf(t.id); if (x >= 0) d.log.splice(x, 1); }
+        else return json(res, 403, { error: 'Alleen jezelf terugzetten' });
+      } else if (b.k === 'shop' && m.shop) {
+        const it = (d.shop || [])[b.i]; if (!it) return json(res, 404, { error: 'Niet gevonden' });
+        it.g = it.g ? 0 : 1;
+      } else if (b.k === 'afval' && m.afval) {
+        const e = (d.afval || []).find(x => x.t === b.t && x.d === b.d); if (!e) return json(res, 404, { error: 'Niet gevonden' });
+        if (!e.by) e.by = g.n; else if (e.by === g.n) delete e.by; else return json(res, 403, { error: 'Alleen jezelf terugzetten' });
+      } else return json(res, 403, { error: 'Geen toegang' });
+      q.put.run('data', JSON.stringify(d), Date.now());
+      return json(res, 200, { ok: true });
+    }
+
     const m = p.match(/^\/api\/state\/(\w+)$/);
     if (m) {
       const s = session(req);
