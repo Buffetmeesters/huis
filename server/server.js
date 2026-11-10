@@ -570,7 +570,8 @@ http.createServer(async (req, res) => {
                   if (allDay) d = st; else { const dd = new Date(st); const f = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(dd); d = f.slice(0, 10); t = f.slice(11, 16); }
                   let t2 = '';
                   if (!allDay && e.end && e.end.dateTime) t2 = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Amsterdam', hour: '2-digit', minute: '2-digit' }).format(new Date(e.end.dateTime));
-                  out.push({ id: e.id, who, calId: c.id, cal: c.summaryOverride || c.summary || '', color: c.backgroundColor || '', d, t, t2, allDay, wie: (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.wie) || '', n: e.summary || '(zonder titel)', loc: e.location || '', canEdit: ['owner', 'writer'].includes(c.accessRole) });
+                  const d2 = allDay && e.end && e.end.date ? (() => { const x = new Date(e.end.date + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); })() : '';
+                  out.push({ id: e.id, who, d2, calId: c.id, cal: c.summaryOverride || c.summary || '', color: c.backgroundColor || '', d, t, t2, allDay, wie: (e.extendedProperties && e.extendedProperties.private && e.extendedProperties.private.wie) || '', n: e.summary || '(zonder titel)', loc: e.location || '', canEdit: ['owner', 'writer'].includes(c.accessRole) });
                 }
               }
             } catch (e) { errors.push(e.message); }
@@ -586,8 +587,9 @@ http.createServer(async (req, res) => {
           const title = String(b.title || '').trim().slice(0, 200);
           if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(b.date || '')) return json(res, 400, { error: 'Titel en datum zijn nodig' });
           let ev;
-          if (!b.time) {
-            const nx = new Date(b.date + 'T12:00:00Z'); nx.setUTCDate(nx.getUTCDate() + 1);
+          const last = /^\d{4}-\d{2}-\d{2}$/.test(b.end || '') && b.end > b.date ? b.end : b.date;
+          if (!b.time || b.allday || last !== b.date) {
+            const nx = new Date(last + 'T12:00:00Z'); nx.setUTCDate(nx.getUTCDate() + 1);
             ev = { summary: title, start: { date: b.date }, end: { date: nx.toISOString().slice(0, 10) } };
           } else {
             if (!/^\d{2}:\d{2}$/.test(b.time)) return json(res, 400, { error: 'Tijd klopt niet' });
