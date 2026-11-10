@@ -32,6 +32,31 @@ const q = {
   purge: db.prepare('DELETE FROM sessions WHERE exp < ?'),
 };
 
+// Back-ups: dagelijks een consistente kopie van de database in DATA/backups (laatste 20 bewaard).
+const BK = path.join(DATA, 'backups');
+fs.mkdirSync(BK, { recursive: true });
+function makeBackup(kind) {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  const name = `huis-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${kind === 'auto' ? '-auto' : ''}.db`;
+  const f = path.join(BK, name);
+  if (fs.existsSync(f)) fs.unlinkSync(f);
+  db.exec("VACUUM INTO '" + f.replace(/'/g, "''") + "'");
+  const all = fs.readdirSync(BK).filter(x => /^huis-[\d-]+(-auto)?\.db$/.test(x)).sort();
+  for (const old of all.slice(0, Math.max(0, all.length - 20))) { try { fs.unlinkSync(path.join(BK, old)); } catch {} }
+  return name;
+}
+function listBackups() {
+  return fs.readdirSync(BK).filter(x => /^huis-[\d-]+(-auto)?\.db$/.test(x)).sort().reverse().map(n => { const st = fs.statSync(path.join(BK, n)); return { naam: n, kb: Math.round(st.size / 1024), tijd: st.mtimeMs }; });
+}
+function autoBackup() {
+  try {
+    const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (d.getHours() < 3 && listBackups().length) return;
+    if (!listBackups().some(b => b.naam.startsWith('huis-' + today) && b.naam.includes('-auto'))) makeBackup('auto');
+  } catch (e) { console.error('Back-up mislukt:', e.message); }
+}
+setTimeout(autoBackup, 5000); setInterval(autoBackup, 30 * 60e3);
+
 const PUB = path.join(__dirname, 'public');
 const KEYS = new Set(['data', 'rooms']);
 const today = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Amsterdam' });
@@ -194,6 +219,18 @@ http.createServer(async (req, res) => {
       const acc = Math.min(Math.max(+b.acc || 0, 0), 100), dm = Math.round(distM(cfg.lat, cfg.lon, b.lat, b.lon));
       if (dm - acc <= (cfg.radius || 150)) { const sid = cookie(req); if (sid) geoOk.set(sha(sid), Date.now() + 10 * 60e3); return json(res, 200, { ok: true }); }
       return json(res, 200, { ok: false, afstand: dm });
+    }
+    if (p.startsWith('/api/backup')) {
+      const s = session(req); if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      if (p === '/api/backup/list') return json(res, 200, { files: listBackups() });
+      if (p === '/api/backup/now' && req.method === 'POST') { try { return json(res, 200, { ok: true, naam: makeBackup('hand'), files: listBackups() }); } catch (e) { return json(res, 500, { error: 'Back-up maken mislukt: ' + e.message }); } }
+      if (p === '/api/backup/download') {
+        const n = String(url.searchParams.get('f') || '');
+        if (!/^huis-[\d-]+(-auto)?\.db$/.test(n) || !fs.existsSync(path.join(BK, n))) return json(res, 404, { error: 'Niet gevonden' });
+        res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-disposition': 'attachment; filename="' + n + '"', 'cache-control': 'no-store' });
+        return fs.createReadStream(path.join(BK, n)).pipe(res);
+      }
+      return json(res, 404, { error: 'Onbekend' });
     }
     if (p === '/api/geo/cfg') {
       const s = session(req); if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
