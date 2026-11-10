@@ -245,6 +245,14 @@ const senCard=r=>{const v=(S.sens||{})[r.id];if(!v)return '';const p=[];
  p.push(`<div class="state">${!v.ok?'Sensor niet gevonden in Home Assistant':v.m===true?'Beweging nu':v.m===false?'Geen beweging · laatst gewijzigd '+agoTxt(v.mt):'Geen gegevens'}</div>`);
  const g=[];if(v.t!=null)g.push(v.t.toFixed(1).replace('.',',')+' °C');if(v.lx!=null)g.push(Math.round(v.lx)+' lux');if(v.bat!=null)g.push('batterij '+Math.round(v.bat)+'%');
  return `<h2>Sensor</h2><div class="card"><div class="name">${v.m===true?'🟢 Beweging':'⚪ Rustig'}</div>${p.join('')}${g.length?`<div class="state">${g.join(' · ')}</div>`:''}${v.bat!=null&&v.bat<=20?'<div class="state" style="color:#e5484d">Batterij bijna leeg</div>':''}</div>`};
+const fT=v=>String(v.toFixed(1)).replace('.',',')+'°';
+const houseTemps=()=>{const sn=S.sens||{},rows=[],per={};
+ S.rooms.forEach(r=>{const v=sn[r.id],c=r.ce&&r.c&&r.c.cur!=null?r.c.cur:null,t=v&&v.t!=null?v.t:null;
+  if(t!=null)rows.push({r:r.name,k:'Sensor',v:t});if(c!=null)rows.push({r:r.name,k:'Airco',v:c});
+  const best=t!=null?t:c;if(best!=null)per[r.id]=best});
+ const vals=Object.values(per);return {rows,avg:vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null,n:vals.length}};
+const tempCard=()=>{const t=houseTemps();if(t.avg==null)return '';
+ return `<h2>Temperatuur in huis</h2><div class="card"><div class="row"><div><div class="big">${fT(t.avg)}</div><div class="state">Gemiddeld over ${t.n} ${t.n===1?'ruimte':'ruimtes'}</div></div></div><div class="chips" style="margin-top:10px">${t.rows.map(x=>`<span class="chip" style="font-size:12px;padding:4px 10px;pointer-events:none">${esc(x.r)} · ${x.k} ${fT(x.v)}</span>`).join('')}<span class="chip" style="font-size:12px;padding:4px 10px;pointer-events:none;opacity:.6">Tado volgt</span></div></div>`};
 const sensorHTML=r=>`<div class="card"><div class="row"><div><div class="name">Bewegingssensor</div><div class="state">${r.auto===false?'Licht gaat niet automatisch aan':'Licht gaat automatisch aan bij beweging'}</div></div><button class="tog" data-act="auto" aria-pressed="${r.auto!==false}" aria-label="Bewegingssensor aan of uit"></button></div></div>`;
 const S={role:'owner',view:'overzicht',room:'woon',film:false,
 rooms:[
@@ -497,9 +505,10 @@ afval(){const L=upAfval(12),all=(D.afval||[]).length;
 overzicht(){resetDue();loadWeather();
  const today=iso(0),hr=new Date().getHours(),hi=hr<6?'Goedenacht':hr<12?'Goedemorgen':hr<18?'Goedemiddag':'Goedenavond';
  const aanL=S.rooms.reduce((a,r)=>a+r.lights.filter(l=>l.on).length,0),aanA0=S.rooms.filter(r=>r.c&&r.c.air).length,nAir0=S.rooms.filter(r=>r.ce).length,tc=S.rooms.filter(r=>r.ce&&r.c&&r.c.cur!=null);
- let h=skyHTML(`<span>${aanL} ${aanL===1?'lamp':'lampen'} aan</span>`+(nAir0?`<span>${aanA0} van ${nAir0} airco’s aan</span>`:'')+(tc.length?`<span>${String((tc.reduce((a,r)=>a+r.c.cur,0)/tc.length).toFixed(1)).replace('.',',')}° binnen</span>`:''));
+ let h=skyHTML(`<span>${aanL} ${aanL===1?'lamp':'lampen'} aan</span>`+(nAir0?`<span>${aanA0} van ${nAir0} airco’s aan</span>`:'')+(houseTemps().avg!=null?`<span>${fT(houseTemps().avg)} binnen</span>`:''));
  const w=S.wx;
  h+=`<h2>Weer vandaag</h2><div class="card">`+(w&&w!=='err'?`<div class="row"><div><div class="big">${Math.round(w.current.temperature_2m)}°</div><div class="name">${WX[w.current.weather_code]||'Onbekend'}</div><div class="state">Voelt als ${Math.round(w.current.apparent_temperature)}° · wind ${Math.round(w.current.wind_speed_10m)} km/u</div></div><div class="state" style="text-align:right">Hoog ${Math.round(w.daily.temperature_2m_max[0])}°<br>Laag ${Math.round(w.daily.temperature_2m_min[0])}°<br>Kans op neerslag ${w.daily.precipitation_probability_max[0]??0}%</div></div>`:w==='err'?'<div class="name">Het weer kon niet worden geladen</div><div class="state">Controleer de internetverbinding. In de demo kan het ophalen ook geblokkeerd zijn.</div>':'<div class="state">Weer laden…</div>')+`</div>`;
+ h+=tempCard();
  const key=today.slice(0,7);
  if(!D.paid[key])h+=`<div class="card" style="margin-top:12px;border-color:var(--amber)"><div class="row"><div><div class="name">Dennis heeft deze maand nog niet betaald</div><div class="state">Vink af in de agenda zodra het binnen is</div></div><button class="btn alt" data-view="agenda">Agenda</button></div></div>`;
  const rc=S.rooms.filter(r=>r.ce),avg=rc.length?rc.reduce((a,r)=>a+curT(r),0)/rc.length:0;
