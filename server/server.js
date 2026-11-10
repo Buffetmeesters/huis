@@ -405,6 +405,7 @@ http.createServer(async (req, res) => {
         for (const k of ['leefgeld', 'kasStart']) if (b[k] !== undefined) d.set[k] = Math.max(0, Math.round(+b[k] || 0));
         const cl = a => Array.isArray(a) ? [...new Set(a.map(x => String(x).trim().slice(0, 60)).filter(Boolean))].slice(0, 40) : null;
         if (cl(b.catsUit)) d.catsUit = cl(b.catsUit); if (cl(b.catsIn)) d.catsIn = cl(b.catsIn);
+        if (b.budget && typeof b.budget === 'object') { const bu = {}; for (const [k, v] of Object.entries(b.budget)) { const n = Math.round(+v); if (n > 0 && n < 1e9 && d.catsUit.includes(k)) bu[String(k).slice(0, 60)] = n; } d.set.budget = bu; }
         save(d); return json(res, 200, { ok: true, ...d });
       }
       return json(res, 404, { error: 'Onbekend' });
