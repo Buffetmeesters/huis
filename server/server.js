@@ -232,6 +232,36 @@ http.createServer(async (req, res) => {
       }
       return json(res, 404, { error: 'Onbekend' });
     }
+    if (p.startsWith('/api/boek')) {
+      // Huishoudboekje: alleen Joshua en Lorenzo (niet Admin, niet gasten).
+      const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      const def = () => ({ tx: [], catsUit: ['Boodschappen', 'Vaste lasten', 'Huis en tuin', 'Dieren (Jolo, Coco en Mango)', 'Vervoer', 'Uit eten en plezier', 'Kleding', 'Zorg', 'Cadeaus', 'Overig'], catsIn: ['Leefgeld', 'Dennis (huur)', 'Salaris of uitkering', 'Overig'], set: { leefgeld: 0, kasStart: 0 } });
+      const bk = () => { const b = kvGet('boek') || {}, d = def(); return { tx: b.tx || [], catsUit: b.catsUit || d.catsUit, catsIn: b.catsIn || d.catsIn, set: { ...d.set, ...(b.set || {}) } }; };
+      const save = b => kvPut('boek', b);
+      if (p === '/api/boek' && req.method === 'GET') return json(res, 200, bk());
+      if (p === '/api/boek/tx' && req.method === 'POST') {
+        const b = JSON.parse(await body(req)), t = b.tx || {};
+        const a = Math.round(+t.a); if (!(a > 0) || a > 1e9) return json(res, 400, { error: 'Vul een bedrag in.' });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) return json(res, 400, { error: 'Datum klopt niet.' });
+        const x = { id: 'b' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c: String(t.c || '').slice(0, 60), n: String(t.n || '').slice(0, 200), w: String(t.w || '').slice(0, 30), src: ['contant', 'rabo', 'anders'].includes(t.src) ? t.src : 'contant', by: s.ref, at: Date.now() };
+        if (typeof b.bon === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.bon) && b.bon.length < 3e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
+        const d = bk(); d.tx.push(x); save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/tx' && req.method === 'DELETE') {
+        const id = String(url.searchParams.get('id') || ''), d = bk(), n = d.tx.length;
+        d.tx = d.tx.filter(x => x.id !== id); if (d.tx.length === n) return json(res, 404, { error: 'Niet gevonden' });
+        try { kvDel('bon:' + id); } catch {} save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/bon' && req.method === 'GET') { const r = kvGet('bon:' + String(url.searchParams.get('id') || '')); return r ? json(res, 200, r) : json(res, 404, { error: 'Geen bonnetje' }); }
+      if (p === '/api/boek/set' && req.method === 'PUT') {
+        const b = JSON.parse(await body(req)), d = bk();
+        for (const k of ['leefgeld', 'kasStart']) if (b[k] !== undefined) d.set[k] = Math.max(0, Math.round(+b[k] || 0));
+        const cl = a => Array.isArray(a) ? [...new Set(a.map(x => String(x).trim().slice(0, 60)).filter(Boolean))].slice(0, 40) : null;
+        if (cl(b.catsUit)) d.catsUit = cl(b.catsUit); if (cl(b.catsIn)) d.catsIn = cl(b.catsIn);
+        save(d); return json(res, 200, { ok: true, ...d });
+      }
+      return json(res, 404, { error: 'Onbekend' });
+    }
     if (p === '/api/geo/cfg') {
       const s = session(req); if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
       let c = geoCfg();
