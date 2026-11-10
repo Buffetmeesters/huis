@@ -381,7 +381,7 @@ http.createServer(async (req, res) => {
       // Huishoudboekje: alleen Joshua en Lorenzo (niet Admin, niet gasten).
       const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
       const def = () => ({ tx: [], catsUit: ['Boodschappen', 'Vaste lasten', 'Huis en tuin', 'Dieren (Jolo, Coco en Mango)', 'Vervoer', 'Uit eten en plezier', 'Kleding', 'Zorg', 'Cadeaus', 'Overig'], catsIn: ['Leefgeld', 'Dennis (huur)', 'Salaris of uitkering', 'Overig'], set: { leefgeld: 0, kasStart: 0 } });
-      const bk = () => { const b = kvGet('boek') || {}, d = def(); return { tx: b.tx || [], catsUit: b.catsUit || d.catsUit, catsIn: b.catsIn || d.catsIn, set: { ...d.set, ...(b.set || {}) } }; };
+      const bk = () => { const b = kvGet('boek') || {}, d = def(); return { tx: b.tx || [], loans: b.loans || [], catsUit: b.catsUit || d.catsUit, catsIn: b.catsIn || d.catsIn, set: { ...d.set, ...(b.set || {}) } }; };
       const save = b => kvPut('boek', b);
       if (p === '/api/boek' && req.method === 'GET') return json(res, 200, bk());
       if (p === '/api/boek/tx' && req.method === 'POST') {
@@ -389,8 +389,27 @@ http.createServer(async (req, res) => {
         const a = Math.round(+t.a); if (!(a > 0) || a > 1e9) return json(res, 400, { error: 'Vul een bedrag in.' });
         if (!/^\d{4}-\d{2}-\d{2}$/.test(t.d || '')) return json(res, 400, { error: 'Datum klopt niet.' });
         const x = { id: 'b' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), d: t.d, a, t: t.t === 'in' ? 'in' : 'uit', c: String(t.c || '').slice(0, 60), n: String(t.n || '').slice(0, 200), w: String(t.w || '').slice(0, 30), src: ['contant', 'rabo', 'ing', 'anders'].includes(t.src) ? t.src : 'contant', by: s.ref, at: Date.now() };
+        { const dl = bk(); if (t.l && dl.loans.some(l => l.id === String(t.l))) x.l = String(t.l); }
         if (typeof b.bon === 'string' && /^data:(image\/(jpeg|png|webp)|application\/pdf);base64,/.test(b.bon) && b.bon.length < 8e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
         const d = bk(); d.tx.push(x); save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/loan' && req.method === 'POST') {
+        const b = JSON.parse(await body(req)), d = bk(), a = Math.round(+b.a), n = String(b.n || '').trim().slice(0, 80);
+        if (!n) return json(res, 400, { error: 'Geef de lening een naam.' }); if (!(a > 0) || a > 1e10) return json(res, 400, { error: 'Vul het geleende bedrag in.' });
+        d.loans.push({ id: 'l' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), n, a, d: /^\d{4}-\d{2}-\d{2}$/.test(b.d || '') ? b.d : '', note: String(b.note || '').slice(0, 300) });
+        d.loans = d.loans.slice(0, 100); save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/loan' && req.method === 'PUT') {
+        const b = JSON.parse(await body(req)), d = bk(), l = d.loans.find(x => x.id === String(b.id || '')); if (!l) return json(res, 404, { error: 'Niet gevonden' });
+        if (b.n !== undefined) { const n = String(b.n).trim().slice(0, 80); if (n) l.n = n; }
+        if (b.a !== undefined) { const a = Math.round(+b.a); if (a > 0 && a < 1e10) l.a = a; }
+        if (b.d !== undefined) l.d = /^\d{4}-\d{2}-\d{2}$/.test(b.d || '') ? b.d : '';
+        if (b.note !== undefined) l.note = String(b.note).slice(0, 300);
+        save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/loan' && req.method === 'DELETE') {
+        const id = String(url.searchParams.get('id') || ''), d = bk(), n = d.loans.length; d.loans = d.loans.filter(x => x.id !== id); if (d.loans.length === n) return json(res, 404, { error: 'Niet gevonden' });
+        d.tx.forEach(t => { if (t.l === id) delete t.l; }); save(d); return json(res, 200, { ok: true, ...d });
       }
       if (p === '/api/boek/bon' && req.method === 'POST') {
         const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
@@ -403,6 +422,7 @@ http.createServer(async (req, res) => {
       }
       if (p === '/api/boek/tx' && req.method === 'PUT') {
         const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
+        if (b.l !== undefined) { if (!b.l) delete t.l; else if (d.loans.some(l => l.id === String(b.l))) t.l = String(b.l); else return json(res, 404, { error: 'Lening niet gevonden' }); save(d); return json(res, 200, { ok: true, ...d }); }
         if (typeof b.x === 'boolean') {
           d.set.skipK = d.set.skipK || {};
           if (t.k) { if (b.x) d.set.skipK[t.k] = 1; else delete d.set.skipK[t.k]; d.tx.forEach(o => { if (o.k === t.k) { if (b.x) o.x = 1; else delete o.x; } }); }
