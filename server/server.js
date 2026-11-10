@@ -81,6 +81,12 @@ function extractDT(text) {
   const d = String(text || '').match(/Datum:\s*(\d{2})-(\d{2})-(\d{4})/), t = String(text || '').match(/Tijd:\s*(\d{1,2}):(\d{2})/);
   return { d: d ? d[3] + '-' + d[2] + '-' + d[1] : '', tm: t ? t[1].padStart(2, '0') + ':' + t[2] : '' };
 }
+function ebRefOf(accUid, t) {
+  const a = Math.round(Math.abs(parseFloat(t.transaction_amount && t.transaction_amount.amount)) * 100), out = t.credit_debit_indicator === 'DBIT';
+  const cp = String((out ? t.creditor && t.creditor.name : t.debtor && t.debtor.name) || '').trim(), om = (t.remittance_information || []).join(' ').replace(/\s+/g, ' ').trim();
+  const bd = String(t.booking_date || t.value_date || t.transaction_date || '').slice(0, 10);
+  return 'eb:' + (t.entry_reference || t.transaction_id || crypto.createHash('sha1').update([accUid, bd, a, cp, om].join('|')).digest('hex').slice(0, 20));
+}
 function cleanDesc(cp, om) {
   om = String(om || '').replace(/\s*(Kaartnr|Pasvolgnr|Apple Pay|Google Pay|Transactie|Betaalautomaat)\b.*$/i, '').replace(/\s+/g, ' ').trim();
   if (cp && om.toLowerCase().startsWith(cp.toLowerCase())) om = om.slice(cp.length).trim();
@@ -99,7 +105,7 @@ async function bankSync() {
     if (!c.appId || !c.pem || !c.sessions.length) return { err: 'Niet gekoppeld' };
     const b = kvGet('boek') || {}; b.tx = b.tx || []; b.set = b.set || {}; b.set.rules = b.set.rules || {};
     b.tx.forEach(t => { if (t.auto && t.n) { const e = extractDT(t.n); if (e.tm && !t.tm) t.tm = e.tm; if (e.d && !t.bd && e.d !== t.d) { t.bd = t.d; t.d = e.d; } t.n = cleanOld(t.n); } });
-    const have = new Set(b.tx.map(t => t.ref).filter(Boolean)); let added = 0;
+    const have = new Set([...b.tx.map(t => t.ref).filter(Boolean), ...(b.set.hidden || [])]); let added = 0;
     const errs = [];
     for (const sess of c.sessions) {
      const bn = (BANKS[sess.bank] || {}).name || sess.bank, bsrc = (BANKS[sess.bank] || {}).src || 'anders';
@@ -107,6 +113,7 @@ async function bankSync() {
      const from = new Date(Date.now() - (sess.synced ? 10 : 90) * 864e5).toISOString().slice(0, 10);
      try {
      for (const acc of sess.accounts || []) {
+      if ((c.skip || []).includes(acc.uid)) continue;
       let ck = '', pages = 0;
       do {
         const q = '?date_from=' + from + (ck ? '&continuation_key=' + encodeURIComponent(ck) : '');
@@ -326,8 +333,28 @@ http.createServer(async (req, res) => {
     if (p.startsWith('/api/bank/')) {
       const s = session(req); if (!s || s.role !== 'owner') return json(res, 403, { error: 'Geen toegang' });
       const c = bankGet();
-      if (p === '/api/bank/status' && req.method === 'GET') return json(res, 200, { configured: !!(c.appId && c.pem), appId: isAdmin(s) ? c.appId || '' : undefined, redirect: c.redirect || '', linked: c.sessions.length > 0, sessions: c.sessions.map(x => ({ bank: x.bank, name: (BANKS[x.bank] || {}).name || x.bank, valid_until: x.valid_until || '', accounts: (x.accounts || []).length })), lastSync: c.lastSync || 0, lastErr: c.lastErr || '', lastAdded: c.lastAdded || 0 });
+      if (p === '/api/bank/status' && req.method === 'GET') return json(res, 200, { configured: !!(c.appId && c.pem), appId: isAdmin(s) ? c.appId || '' : undefined, redirect: c.redirect || '', linked: c.sessions.length > 0, skip: c.skip || [], accounts: c.sessions.flatMap(x => (x.accounts || []).map(a => ({ uid: a.uid, bank: (BANKS[x.bank] || {}).name || x.bank, iban: a.iban ? a.iban.slice(0, 4) + ' … ' + a.iban.slice(-4) : '', skip: (c.skip || []).includes(a.uid) }))), sessions: c.sessions.map(x => ({ bank: x.bank, name: (BANKS[x.bank] || {}).name || x.bank, valid_until: x.valid_until || '', accounts: (x.accounts || []).length })), lastSync: c.lastSync || 0, lastErr: c.lastErr || '', lastAdded: c.lastAdded || 0 });
       if (p === '/api/bank/sync' && req.method === 'POST') { if (!OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' }); const r = await bankSync(); return json(res, 200, { ...r, boek: kvGet('boek') }); }
+      if (p === '/api/bank/account' && req.method === 'POST') {
+        if (!OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+        const b = JSON.parse(await body(req)), uid = String(b.uid || ''), sess = c.sessions.find(x => (x.accounts || []).some(a => a.uid === uid));
+        if (!sess) return json(res, 404, { error: 'Rekening niet gevonden' });
+        c.skip = (c.skip || []).filter(x => x !== uid);
+        if (b.skip) {
+          const refs = new Set(); let ck = '', pages = 0;
+          try {
+            do {
+              const j = await ebCall(c, 'GET', '/accounts/' + encodeURIComponent(uid) + '/transactions?date_from=' + new Date(Date.now() - 800 * 864e5).toISOString().slice(0, 10) + (ck ? '&continuation_key=' + encodeURIComponent(ck) : ''));
+              for (const t of j.transactions || []) refs.add(ebRefOf(uid, t));
+              ck = j.continuation_key || ''; pages++;
+            } while (ck && pages < 60);
+          } catch (e) { return json(res, 502, { error: 'Boekingen van deze rekening ophalen mislukt: ' + String(e.message || e).slice(0, 120) }); }
+          const bb = kvGet('boek') || {}; bb.tx = bb.tx || []; const del = bb.tx.filter(t => t.ref && refs.has(t.ref));
+          bb.tx = bb.tx.filter(t => !(t.ref && refs.has(t.ref))); del.forEach(t => { try { kvDel('bon:' + t.id); } catch {} }); kvPut('boek', bb);
+          c.skip.push(uid); bankPut(c); return json(res, 200, { ok: true, removed: del.length, boek: kvGet('boek') });
+        }
+        sess.synced = 0; bankPut(c); bankSync().catch(() => {}); return json(res, 200, { ok: true, removed: 0, boek: kvGet('boek') });
+      }
       if (!isAdmin(s)) return json(res, 403, { error: 'Alleen Admin' });
       if (p === '/api/bank/cfg' && req.method === 'PUT') {
         const b = JSON.parse(await body(req)), n = { ...c };
@@ -381,11 +408,12 @@ http.createServer(async (req, res) => {
       }
       if (p === '/api/boek/tx' && req.method === 'DELETE') {
         const id = String(url.searchParams.get('id') || ''), d = bk(), n = d.tx.length;
-        d.tx = d.tx.filter(x => x.id !== id); if (d.tx.length === n) return json(res, 404, { error: 'Niet gevonden' });
+        const gone = d.tx.find(x => x.id === id); d.tx = d.tx.filter(x => x.id !== id); if (d.tx.length === n) return json(res, 404, { error: 'Niet gevonden' });
+        if (gone && gone.ref) { d.set.hidden = [...(d.set.hidden || []), gone.ref].slice(-3000); }
         try { kvDel('bon:' + id); } catch {} save(d); return json(res, 200, { ok: true, ...d });
       }
       if (p === '/api/boek/import' && req.method === 'POST') {
-        const b = JSON.parse(await body(req)), d = bk(), have = new Set(d.tx.map(t => t.ref).filter(Boolean)); let n = 0, skip = 0;
+        const b = JSON.parse(await body(req)), d = bk(), have = new Set([...d.tx.map(t => t.ref).filter(Boolean), ...(d.set.hidden || [])]); let n = 0, skip = 0;
         d.set.rules = d.set.rules || {};
         for (const t of (Array.isArray(b.items) ? b.items : []).slice(0, 2000)) {
           const a = Math.round(+t.a), ref = String(t.ref || '').slice(0, 120);
