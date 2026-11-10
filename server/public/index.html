@@ -233,6 +233,7 @@ body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
  <div class="grow"></div>
  <a class="chip" id="hal" href="/admin" style="text-decoration:none;display:none">Admin</a>
  <button class="chip" id="logout" type="button">Uitloggen</button>
+ <span class="chip" id="welkom" style="pointer-events:none;display:none"></span>
  <div class="seg" role="group" aria-label="Weergave"><button data-role="owner" aria-pressed="true">Eigenaar</button><button data-role="guest" aria-pressed="false">Gast</button></div>
 </header>
 <nav class="tabs" id="views" aria-label="Onderdelen"></nav>
@@ -329,7 +330,8 @@ function pushAll(){S.rooms.forEach(r=>r.lights.forEach((l,i)=>{if(!l.e)return;co
  fetch('/api/light',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({room:r.id,i,on:!!l.on,b:l.b})}).then(x=>{if(!x.ok)pollLights(true)}).catch(()=>{})}))}
 let polling=false;
 let GON=false;
-function guestUI(){const sg=document.querySelector('.seg');if(sg)sg.style.display=GON&&!GUEST?'':'none';if(!GON&&S.role==='guest'&&!GUEST){S.role='owner'}}
+let MEI=null;
+function guestUI(){const adm=!!(MEI&&MEI.admin&&!GUEST),sg=document.querySelector('.seg'),w=document.getElementById('welkom');if(sg)sg.style.display=adm?'':'none';if(w){w.style.display=MEI&&!GUEST?'':'none';w.textContent=MEI&&MEI.name?'Welkom '+MEI.name:''}if(!adm&&S.role==='guest'&&!GUEST){S.role='owner'}}
 async function gtoggle(){try{const r=await fetch('/api/guests/enabled',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({on:!GON})});const j=await r.json();if(!r.ok){toast(j.error||'Mislukt');return}GON=!!j.on;guestUI();toast(GON?'Gasttoegang staat aan':'Gasttoegang staat uit')}catch(e){toast('Geen verbinding met de server')}render()}
 const fmtM=ms=>ms?new Date(ms).toLocaleString('nl-NL',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}):'onbekend';
 async function loadDev(){S.devBusy=true;try{const r=await fetch('/api/sessions');const j=await r.json();S.dev=r.ok?j.sessions:[]}catch(e){S.dev=[]}S.devBusy=false;if(S.view==='apparaten')render()}
@@ -831,7 +833,7 @@ try{if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')}c
 (async()=>{
 let fromSrv=false,ME=null;
 try{const r=await fetch('/api/me');if(r.status!==200){location.reload();return}ME=await r.json()}catch(e){}
-GUEST=!!ME&&ME.role==='guest';GON=!!(ME&&ME.guests);
+GUEST=!!ME&&ME.role==='guest';GON=!!(ME&&ME.guests);MEI=ME;
 guestUI();
 if(GUEST){try{localStorage.removeItem('huis-d2');localStorage.removeItem('huis-r')}catch(e){}}
 let srvD=null;
