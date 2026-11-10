@@ -77,6 +77,10 @@ function catFor(inc, txt, key, rules) {
   if (inc) return /leefgeld|bewind/i.test(txt) ? 'Leefgeld' : /salaris|loon|uwv|svb|uitkering/i.test(txt) ? 'Salaris of uitkering' : 'Overig';
   const h = BR.find(x => x[0].test(txt)); return h ? h[1] : 'Overig';
 }
+function extractDT(text) {
+  const d = String(text || '').match(/Datum:\s*(\d{2})-(\d{2})-(\d{4})/), t = String(text || '').match(/Tijd:\s*(\d{1,2}):(\d{2})/);
+  return { d: d ? d[3] + '-' + d[2] + '-' + d[1] : '', tm: t ? t[1].padStart(2, '0') + ':' + t[2] : '' };
+}
 function cleanDesc(cp, om) {
   om = String(om || '').replace(/\s*(Kaartnr|Pasvolgnr|Apple Pay|Google Pay|Transactie|Betaalautomaat)\b.*$/i, '').replace(/\s+/g, ' ').trim();
   if (cp && om.toLowerCase().startsWith(cp.toLowerCase())) om = om.slice(cp.length).trim();
@@ -94,7 +98,7 @@ async function bankSync() {
   try {
     if (!c.appId || !c.pem || !c.sessions.length) return { err: 'Niet gekoppeld' };
     const b = kvGet('boek') || {}; b.tx = b.tx || []; b.set = b.set || {}; b.set.rules = b.set.rules || {};
-    b.tx.forEach(t => { if (t.auto && t.n) t.n = cleanOld(t.n); });
+    b.tx.forEach(t => { if (t.auto && t.n) { const e = extractDT(t.n); if (e.tm && !t.tm) t.tm = e.tm; if (e.d && !t.bd && e.d !== t.d) { t.bd = t.d; t.d = e.d; } t.n = cleanOld(t.n); } });
     const have = new Set(b.tx.map(t => t.ref).filter(Boolean)); let added = 0;
     const errs = [];
     for (const sess of c.sessions) {
@@ -111,13 +115,14 @@ async function bankSync() {
           if (t.status && t.status !== 'BOOK') continue;
           const a = Math.round(Math.abs(parseFloat(t.transaction_amount && t.transaction_amount.amount)) * 100); if (!(a > 0)) continue;
           const out = t.credit_debit_indicator === 'DBIT', cp = String((out ? t.creditor && t.creditor.name : t.debtor && t.debtor.name) || '').trim(), om = (t.remittance_information || []).join(' ').replace(/\s+/g, ' ').trim();
-          const d = String(t.booking_date || t.value_date || t.transaction_date || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
-          const ref = 'eb:' + (t.entry_reference || t.transaction_id || crypto.createHash('sha1').update([acc.uid, d, a, cp, om].join('|')).digest('hex').slice(0, 20));
+          const bd = String(t.booking_date || t.value_date || t.transaction_date || '').slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) continue;
+          const ex = extractDT(om), d = ex.d || bd;
+          const ref = 'eb:' + (t.entry_reference || t.transaction_id || crypto.createHash('sha1').update([acc.uid, bd, a, cp, om].join('|')).digest('hex').slice(0, 20));
           if (have.has(ref)) continue;
-          const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === bsrc && x.d === d && x.a === a && x.t === type);
+          const type = out ? 'uit' : 'in', man = b.tx.find(x => !x.ref && x.src === bsrc && (x.d === d || x.d === bd) && x.a === a && x.t === type);
           const key = (cp || om.slice(0, 30)).toLowerCase();
           if (man) { man.ref = ref; man.k = key; have.add(ref); continue; }
-          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, by: 'bank', at: Date.now() });
+          b.tx.push({ id: 'b' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex'), d, a, t: type, c: catFor(!out, cp + ' ' + om, key, b.set.rules), n: cleanDesc(cp, om), w: '', src: bsrc, ref, k: key.slice(0, 60), auto: 1, tm: ex.tm || undefined, bd: d !== bd ? bd : undefined, by: 'bank', at: Date.now() });
           have.add(ref); added++;
         }
         ck = j.continuation_key || ''; pages++;
