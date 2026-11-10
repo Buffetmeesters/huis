@@ -89,6 +89,8 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 .shell{display:block}
 .rail{display:none}
 .bento{display:block}
+.ovg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch}.ovg>div{min-width:0;display:flex;flex-direction:column}.ovg>div>.card{flex:1}.tg{display:grid;gap:10px;flex:1}.tg>.card{height:auto}
+@media(max-width:720px){.ovg{grid-template-columns:1fr;gap:0}}
 .film{margin-bottom:16px}
 .master{margin-bottom:12px}
 .master .bri{display:flex;align-items:center;gap:12px;margin-top:6px}
@@ -446,7 +448,7 @@ async function loadGoogle(force){if(S.role!=='owner'||GL||(!force&&S.g&&Date.now
   if(g.connected.length){const f=iso(0),t=iso(45),a=await fetch('/api/agenda?from='+f+'&to='+t);if(a.status===200){const j=await a.json();g.events=j.events||[];g.cals=j.calendars||[];g.errors=j.errors||[]}}
   const ch=!S.g||JSON.stringify(g.events)!==JSON.stringify(S.g.events)||JSON.stringify(g.connected)!==JSON.stringify(S.g.connected);
   S.g=g;const ae=document.activeElement,typing=ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName);
-  if(ch&&!typing&&(S.view==='agenda'||S.view==='overzicht'))render()}catch(e){}finally{GL=0}}
+  if(ch&&!typing&&(S.view==='agenda'||S.view==='overzicht'||S.view==='airco'))render()}catch(e){}finally{GL=0}}
 const gset=id=>(D.gcal&&D.gcal[id])||{};
 const gev=()=>((S.g&&S.g.events)||[]).filter(e=>!gset(e.calId).h).map(e=>{const o=gset(e.calId);return {d:e.d,t:e.allDay?'':e.t,n:e.n,w:e.wie||o.n||e.who,g:Object.assign({},e,{color:o.c||e.color,cal:(o.n||e.wie)?'':e.cal,_i:S.g.events.indexOf(e)})}});
 async function gAdd(who,d,t,n,wie){try{const r=await fetch('/api/agenda/add',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({who,date:d,time:t,title:n,wie})});if(r.status!==200){const j=await r.json().catch(()=>({}));toast(j.error||'Toevoegen is mislukt.')}else toast('Toegevoegd aan Google Agenda.')}catch(e){toast('Geen verbinding met de server.')}loadGoogle(true)}
@@ -527,17 +529,14 @@ overzicht(){resetDue();loadWeather();
  const heroH=h;h='';
  const w=S.wx;
  const wH=`<h2>Weer vandaag</h2><div class="card">`+(w&&w!=='err'?`<div><div><div class="big">${Math.round(w.current.temperature_2m)}°</div><div class="name">${WX[w.current.weather_code]||'Onbekend'}</div><div class="state">Voelt als ${Math.round(w.current.apparent_temperature)}° · wind ${Math.round(w.current.wind_speed_10m)} km/u</div></div><div class="state" style="margin-top:8px">Hoog ${Math.round(w.daily.temperature_2m_max[0])}°<br>Laag ${Math.round(w.daily.temperature_2m_min[0])}°<br>Kans op neerslag ${w.daily.precipitation_probability_max[0]??0}%</div></div>`:w==='err'?'<div class="name">Het weer kon niet worden geladen</div><div class="state">Controleer de internetverbinding. In de demo kan het ophalen ook geblokkeerd zijn.</div>':'<div class="state">Weer laden…</div>')+`</div>`;
- h+=tempCard();
  const rc=S.rooms.filter(r=>r.ce),avg=rc.length?rc.reduce((a,r)=>a+curT(r),0)/rc.length:0;
  const un=S.role==='owner'?HAC.filter(x=>!S.rooms.some(r=>r.ce===x.id)):[];
  if(un.length)h+=`<h2>Airco koppelen</h2>`+un.map((x,k)=>`<div class="card form"><div class="name">${esc(x.naam)}</div><div class="state">Staat in Home Assistant, nog niet aan een ruimte gekoppeld.</div><select id="cmr${k}" aria-label="Ruimte voor ${esc(x.naam)}">${S.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select><button class="btn" data-act="cmap" data-e="${x.id}" data-i="${k}">Koppelen aan ruimte</button></div>`).join('');
- if(rc.length)h+=`<h2>Airco</h2><div class="grid" style="margin-top:8px">`+rc.map(r=>{const c=cc(r);return `<div class="card"><div class="name">${esc(r.name)}</div><div class="state">Nu ${String(curT(r)).replace('.',',')}° · ingesteld ${String(c.set).replace('.',',')}°</div>${modeChips(r)}<div class="mini"><button class="btn alt" data-act="ctm" data-r="${r.id}" aria-label="Lager ${esc(r.name)}">−</button><button class="btn alt" data-act="ctp" data-r="${r.id}" aria-label="Hoger ${esc(r.name)}">+</button><button class="btn ${c.air?'':'alt'}" data-act="cair" data-r="${r.id}">Airco ${c.air?'aan':'uit'}</button></div></div>`}).join('')+`</div>`;
  const hL=h;h='';
  const pm=[0,1].map(o=>new Date(new Date().getFullYear(),new Date().getMonth()+o,1,12)).map(ds);
  loadGoogle();const ev=[...D.events,...gev(),...pm.map(d=>({d,t:'',n:'Dennis betaalt',w:'Dennis'}))].filter(e=>e.d>=today&&e.d<=iso(1)).sort((a,b)=>(a.d+a.t).localeCompare(b.d+b.t));
  const dl=d=>d===today?'Vandaag':d===iso(1)?'Morgen':fmtD(d);
  const aH=`<h2>Agenda</h2>`+(ev.length?ev.map(e=>`<div class="card row item"><div><div class="name">${esc((e.t+' '+e.n).trim())}</div><div class="state">${dl(e.d)} · ${esc(e.w)}</div></div></div>`).join(''):'<p class="state">Vandaag en morgen staat er niets gepland.</p>')+`<p><button class="btn alt" data-view="agenda">Hele agenda</button></p>`;
- const pair=`<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start"><div>${wH}</div><div>${aH}</div></div>`;
  const open=D.tasks.map((t,i)=>[t,i]).filter(([t])=>!t.by);
  const wk=(()=>{const d=dt(today);d.setDate(d.getDate()-((d.getDay()+6)%7));return ds(d)})();
  const sc=D.who.map(n=>[n,D.log.filter(e=>e.w===n&&e.d>=wk).reduce((a,e)=>a+e.p,0)]).sort((a,b)=>b[1]-a[1]);
@@ -545,11 +544,30 @@ overzicht(){resetDue();loadWeather();
  const tl='text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;width:100%;min-width:0;margin:0;padding:14px 12px';
  const ti=(k,n)=>`<span class="ico" style="display:inline-flex;width:30px;height:30px;margin-bottom:8px"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></span><div class="state" style="font-size:12px">${n}</div>`;
  const sm='font-size:12px;margin-top:6px;line-height:1.3;word-break:break-word';
- h+=`<h2>Taken, afval en boodschappen</h2><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">`+
+ const tilesH=`<h2>Taken, afval en boodschappen</h2><div class="tg" style="grid-template-columns:repeat(3,minmax(0,1fr))">`+
  `<button class="card" data-view="taken" style="${tl}" aria-label="Taken">${ti('taken','Taken')}<div class="big" style="font-size:26px">${open.length}</div><div class="state" style="${sm}">${open.length?esc(open[0][0].n)+(open.length>1?' en '+(open.length-1)+' andere':''):'Alles is gedaan'}</div>${sc[0]&&sc[0][1]>0?`<div class="state" style="${sm}">Voorop: ${esc(sc[0][0])} (${sc[0][1]})</div>`:''}</button>`+
  `<button class="card" data-view="afval" style="${tl}" aria-label="Afval">${ti('afval','Afval')}`+(av.length?`<div class="name" style="font-size:15px">${afvalChip(av[0])}${atl(av[0].t)}</div><div class="state" style="${sm}">${dagL(av[0].d)}${av[0].d===iso(1)?'<br>Zet vanavond de bak buiten':''}</div>`+av.slice(1,3).map(e=>`<div class="state" style="${sm}">${afvalChip(e)}${atl(e.t)}<br>${dagL(e.d)}</div>`).join(''):`<div class="state" style="${sm}">Nog geen ophaaldata</div>`)+`</button>`+
  `<button class="card" data-view="boodschappen" style="${tl}" aria-label="Boodschappen">${ti('boodschappen','Boodschappen')}<div class="big" style="font-size:26px">${sh.length}</div><div class="state" style="${sm}">${sh.length?esc(sh.slice(0,3).map(x=>x.n).join(', '))+(sh.length>3?' en meer':''):'De lijst is leeg'}</div></button></div>`;
- return `${heroH}${pair}<div class="bento"><div class="colL">${hL}</div><div class="colR">${h}</div></div>`},
+ const nEv=ev.length,nxt=ev[0],rcA=S.rooms.filter(r=>r.ce),onA=rcA.filter(r=>cc(r).air).length;
+ const t2=(view,ico,name,big,sm)=>`<button class="card" data-view="${view}" style="${tl}" aria-label="${name}">${ti(ico,name)}<div class="big" style="font-size:26px">${big}</div><div class="state" style="${sm0}">${sm}</div></button>`;
+ const sm0='font-size:12px;margin-top:6px;line-height:1.3;word-break:break-word';
+ const agT=t2('agenda','agenda','Agenda',nEv,nEv?esc((nxt.t+' '+nxt.n).trim())+'<br>'+dl(nxt.d)+(nEv>1?' en '+(nEv-1)+' andere':''):'Niets gepland vandaag en morgen');
+ const acT=S.role==='owner'&&rcA.length?t2('airco','klimaat','Airco’s',onA+' aan',rcA.length+' '+(rcA.length===1?'airco':'airco’s')+(houseTemps().avg!=null?'<br>Huis '+fT(houseTemps().avg):'')+'<br>Per verdieping bedienen'):'';
+ return `${heroH}<div class="ovg"><div>${wH}</div><div><h2>Agenda${acT?' en airco’s':''}</h2><div class="tg" style="grid-template-columns:repeat(${acT?2:1},minmax(0,1fr))">${agT}${acT}</div></div></div><div class="ovg"><div>${tempCard()}</div><div>${tilesH}</div></div>${hL}`},
+airco(){
+ if(S.role!=='owner')return '<h2>Airco’s</h2><p class="state">Alleen eigenaren kunnen de airco’s per verdieping bedienen.</p>';
+ const T=houseTemps(),nm=['Begane grond','1e verdieping','Zolder'];
+ let h=`<button class="back" data-view="overzicht">‹ Overzicht</button><h2 style="margin-top:6px">Airco’s en temperatuur per verdieping</h2>`;
+ [0,1,2].forEach(f=>{
+  const rr=S.rooms.filter(r=>r.f===f&&r.ce),a=T.flAvg[f];
+  const sens=T.fl[f].filter(x=>x.k==='Sensor');
+  if(!rr.length&&a==null&&!sens.length&&f===2)return;
+  h+=`<h2>${nm[f]}${a!=null?` · ${fT(a)}`:''}</h2>`;
+  if(sens.length)h+=`<div class="chips">${sens.map(x=>`<span class="chip" style="pointer-events:none">${esc(x.r)} · ● ${fT(x.v)}</span>`).join('')}</div>`;
+  h+=rr.length?`<div class="grid" style="margin-top:8px">`+rr.map(r=>{const c=cc(r);return `<div class="card"><div class="name">${esc(r.name)}</div><div class="state">Nu ${String(curT(r)).replace('.',',')}° · ingesteld ${String(c.set).replace('.',',')}°</div>${modeChips(r)}<div class="mini"><button class="btn alt" data-act="ctm" data-r="${r.id}" aria-label="Lager ${esc(r.name)}">−</button><button class="btn alt" data-act="ctp" data-r="${r.id}" aria-label="Hoger ${esc(r.name)}">+</button><button class="btn ${c.air?'':'alt'}" data-act="cair" data-r="${r.id}">Airco ${c.air?'aan':'uit'}</button></div></div>`}).join('')+`</div>`:'<p class="state">Hier staat nog geen airco.</p>';
+ });
+ h+=`<p class="state" style="margin-top:16px">Tado-thermostaten komen hier per verdieping te staan zodra ze gekoppeld zijn.</p>`;
+ return h},
 meer(){return `<h2>Meer</h2><div class="mgrid">${VL.filter(x=>!['overzicht','home','agenda','taken'].includes(x[0])).map(([k,n])=>`<button class="mt" data-view="${k}"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></span>${n}</button>`).join('')}</div>`},
 notities(){
  if(S.role!=='owner'){const L=myNotes();return guestBar()+'<h2>Notities</h2>'+(L.length?L.map(n=>`<div class="card item"><div class="name">${esc(n.t)}</div><div class="state">Van ${esc(n.by)}, ${n.d}</div><p style="white-space:pre-line">${esc(n.x)}</p></div>`).join(''):'<p class="state">Geen notities voor jou.</p>')}
@@ -657,7 +675,7 @@ function lampHTML(l,i){return `<div class="card lamp ${l.on?'on':''}" style="--b
 <div class="row"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC.home}"/></svg></span><button class="tog" data-act="tog" data-i="${i}" aria-pressed="${l.on}" aria-label="${esc(l.n)} aan of uit"></button></div>
 <div class="name" style="margin-top:10px">${esc(l.n)}</div><div class="state">${l.on?l.b+'%':'Uit'}</div>
 <input type="range" min="1" max="100" value="${l.b}" data-act="bri" data-i="${i}" aria-label="Helderheid ${esc(l.n)}">${l.e&&hasW(l)?`<button class="btn alt kl" data-act="lcolbtn" data-i="${i}">Kleur</button>${S.col===S.room+':'+i?swatches('lcol',`data-i="${i}"`,l):''}`:''}</div>`}
-const IC={meer:'M5 12h.01M12 12h.01M19 12h.01',overzicht:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',home:'M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z',agenda:'M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM4 10h16M9 3v4M15 3v4',taken:'M5 12.5l4.5 4.5L19 7',boodschappen:'M3 9h18l-2 11H5zM8 9l3-5M16 9l-3-5',afval:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',recepten:'M6 3h12v18l-6-4-6 4z',ruimtes:'M4 8h16M4 16h16M9 5v6M15 13v6',groepen:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',gasten:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 3-5 6-5s6 2 6 5M17 11a2.5 2.5 0 1 0 0-5M21 19c0-2.2-1.6-3.8-3.5-4.4',notities:'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7'};
+const IC={klimaat:'M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9M9 4l3 2 3-2M9 20l3-2 3 2',meer:'M5 12h.01M12 12h.01M19 12h.01',overzicht:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',home:'M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z',agenda:'M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM4 10h16M9 3v4M15 3v4',taken:'M5 12.5l4.5 4.5L19 7',boodschappen:'M3 9h18l-2 11H5zM8 9l3-5M16 9l-3-5',afval:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',recepten:'M6 3h12v18l-6-4-6 4z',ruimtes:'M4 8h16M4 16h16M9 5v6M15 13v6',groepen:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',gasten:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 3-5 6-5s6 2 6 5M17 11a2.5 2.5 0 1 0 0-5M21 19c0-2.2-1.6-3.8-3.5-4.4',notities:'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7'};
 function dialHTML(r){const c=cc(r),mn=15,mx=28,f=(c.set-mn)/(mx-mn);let t='';
  for(let i=0;i<=40;i++){const a=(135+270*i/40)*Math.PI/180,x1=110+94*Math.cos(a),y1=110+94*Math.sin(a),x2=110+102*Math.cos(a),y2=110+102*Math.sin(a);
   t+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${i/40<=f+.001?'var(--ring)':'rgba(255,255,255,.2)'}" stroke-width="2.5" stroke-linecap="round"/>`}
