@@ -365,6 +365,15 @@ http.createServer(async (req, res) => {
         if (typeof b.bon === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(b.bon) && b.bon.length < 3e6) { kvPut('bon:' + x.id, { img: b.bon }); x.bon = 1; }
         const d = bk(); d.tx.push(x); save(d); return json(res, 200, { ok: true, ...d });
       }
+      if (p === '/api/boek/bon' && req.method === 'POST') {
+        const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
+        if (typeof b.bon !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(b.bon) || b.bon.length >= 3e6) return json(res, 400, { error: 'Dit is geen geldige foto.' });
+        kvPut('bon:' + t.id, { img: b.bon }); t.bon = 1; save(d); return json(res, 200, { ok: true, ...d });
+      }
+      if (p === '/api/boek/bon' && req.method === 'DELETE') {
+        const id = String(url.searchParams.get('id') || ''), d = bk(), t = d.tx.find(x => x.id === id); if (!t) return json(res, 404, { error: 'Niet gevonden' });
+        try { kvDel('bon:' + id); } catch {} delete t.bon; save(d); return json(res, 200, { ok: true, ...d });
+      }
       if (p === '/api/boek/tx' && req.method === 'PUT') {
         const b = JSON.parse(await body(req)), d = bk(), t = d.tx.find(x => x.id === String(b.id || '')); if (!t) return json(res, 404, { error: 'Niet gevonden' });
         const c = String(b.c || '').trim().slice(0, 60); if (!c) return json(res, 400, { error: 'Kies een categorie.' });
@@ -462,6 +471,17 @@ http.createServer(async (req, res) => {
         if (b.on !== true) db.prepare("DELETE FROM sessions WHERE role = 'guest'").run();
       }
       return json(res, 200, { on: guestsOn() });
+    }
+    if (p === '/api/password' && req.method === 'POST') {
+      const s = session(req); if (!s || s.role !== 'owner') return json(res, 403, { error: 'Niet ingelogd' });
+      if (limited(ip)) return json(res, 429, { error: 'Te vaak geprobeerd. Wacht even en probeer het later opnieuw.' });
+      const b = JSON.parse(await body(req)), o = q.owner.get(s.ref);
+      if (!o || typeof b.old !== 'string' || !same(hashPw(b.old, o.salt), o.hash)) { failed(ip); return json(res, 400, { error: 'Het huidige wachtwoord klopt niet.' }); }
+      if (typeof b.new !== 'string' || b.new.length < 8) return json(res, 400, { error: 'Het nieuwe wachtwoord moet minstens 8 tekens hebben.' });
+      if (b.new === b.old) return json(res, 400, { error: 'Kies een ander wachtwoord dan het huidige.' });
+      const salt = crypto.randomBytes(16).toString('hex'); q.addOwner.run(s.ref, salt, hashPw(b.new, salt));
+      db.prepare("DELETE FROM sessions WHERE role = 'owner' AND ref = ? AND sid != ?").run(s.ref, sha(cookie(req)));
+      return json(res, 200, { ok: true });
     }
     if (p === '/api/sessions') {
       const s = session(req);
