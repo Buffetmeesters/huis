@@ -106,7 +106,7 @@ function filterForGuest(d, gid) {
   delete out.gcal; delete out.paid; delete out.log; delete out.recipes; delete out.events;
   const m = (g && g.mod) || {};
   out.tasks = m.taken ? (d.tasks || []) : []; out.shop = m.shop ? (d.shop || []) : []; out.afval = m.afval ? (d.afval || []) : [];
-  out.phr = m.omroep ? (d.phr || []).map((p, i) => ({ t: p.t, i, gast: p.gast })).filter(p => p.gast) : []; delete out.spf; delete out.spl;
+  out.phr = (d.phr || []).map((p, i) => ({ t: p.t, i, id: p.id })).filter(p => p.id && ((g && g.ph) || []).includes(p.id)); delete out.spf; delete out.spl;
   out.log = []; out.recipes = []; out.events = []; out.paid = {};
   return out;
 }
@@ -289,8 +289,8 @@ http.createServer(async (req, res) => {
       const s = session(req);
       if (!s || s.role !== 'guest') return json(res, 403, { error: 'Alleen voor gasten' });
       const g = findGuest(s.ref), d = loadData(), cfg = haCfg(), b = JSON.parse(await body(req));
-      if (!g || !d || !(g.mod && g.mod.omroep)) return json(res, 403, { error: 'Geen toegang' });
-      const ph = (d.phr || [])[b.i]; if (!ph || !ph.gast) return json(res, 403, { error: 'Deze zin mag niet' });
+      if (!g || !d || !(g.ph && g.ph.length)) return json(res, 403, { error: 'Geen toegang' });
+      const ph = (d.phr || [])[b.i]; if (!ph || !ph.id || !g.ph.includes(ph.id)) return json(res, 403, { error: 'Deze zin mag niet' });
       if (!cfg) return json(res, 400, { error: 'Home Assistant is nog niet ingesteld.' });
       const spf = d.spf || {}, fl = ph.fl || [];
       const targets = (d.spl || []).filter(x => /^media_player\.[\w]+$/.test(x) && (spf[x] == null || fl.includes(spf[x]))).slice(0, 20);
