@@ -280,7 +280,7 @@ async function aiLabel(req, name, inp) {
 async function aiChat(req, s, msgs) {
   const cfg = aiCfg(), tools = aiTools(s), pend = [], cites = new Map();
   let web = cfg.web !== false;
-  const sys = 'Je bent de huisassistent in het dashboard van Joshua en Lorenzo (Boxtel). Je praat Nederlands, kort en vriendelijk. De gebruiker is ' + (s.role === 'owner' ? s.ref : 'een gast of familielid') + '. Vandaag is ' + new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Amsterdam' }) + ' (' + today() + '). ' + (cfg.context ? 'Over het huishouden: ' + String(cfg.context).slice(0, 2000) + ' ' : '') + 'Gebruik de tools om iets op te zoeken in plaats van te raden en verzin nooit gegevens. ' +
+  const sys = (cfg.name ? 'Je heet ' + cfg.name + '; reageer als iemand je bij die naam roept. ' : '') + 'Je bent de huisassistent in het dashboard van Joshua en Lorenzo (Boxtel). Je praat Nederlands, kort en vriendelijk. De gebruiker is ' + (s.role === 'owner' ? s.ref : 'een gast of familielid') + '. Vandaag is ' + new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Amsterdam' }) + ' (' + today() + '). ' + (cfg.context ? 'Over het huishouden: ' + String(cfg.context).slice(0, 2000) + ' ' : '') + 'Gebruik de tools om iets op te zoeken in plaats van te raden en verzin nooit gegevens. ' +
     'Acties (lamp, boodschap) worden pas uitgevoerd nadat de gebruiker op een knop bevestigt: zeg dus "ik heb het klaargezet, bevestig het hieronder", nooit dat het al gedaan is. ' +
     'Combineer gerust meerdere tools voor één antwoord (bijvoorbeeld agenda en afval voor "wat moet ik morgen doen"). Noem bedragen in euro en datums als "dinsdag 10 november". Als iets niet in de gegevens staat, zeg dat eerlijk. ' +
     'Voor actuele dingen buiten het huis (winkels in de buurt, openingstijden, reistijden, nieuws) mag je op internet zoeken; het weer haal je met lees_weer. Zeg erbij als openingstijden of reistijden kunnen afwijken. ' +
@@ -766,18 +766,19 @@ http.createServer(async (req, res) => {
       const cfg = aiCfg();
       if (p === '/api/assistant/cfg') {
         if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
-        if (req.method === 'GET') return json(res, 200, { keySet: !!cfg.key, model: cfg.model || 'claude-sonnet-5-5', context: cfg.context || '', web: cfg.web !== false });
+        if (req.method === 'GET') return json(res, 200, { keySet: !!cfg.key, model: cfg.model || 'claude-sonnet-5-5', context: cfg.context || '', web: cfg.web !== false, name: cfg.name || '' });
         if (req.method === 'PUT') {
           const b = JSON.parse(await body(req)), c = { ...cfg };
           if (typeof b.key === 'string' && b.key.trim()) c.key = b.key.trim().slice(0, 300);
           if (b.clear === true) delete c.key;
           if (typeof b.context === 'string') c.context = b.context.slice(0, 2000);
           if (typeof b.web === 'boolean') c.web = b.web;
+          if (typeof b.name === 'string') c.name = b.name.replace(/[^\p{L}\p{N} -]/gu, '').trim().slice(0, 20);
           if (typeof b.model === 'string' && /^[\w.-]{3,60}$/.test(b.model.trim())) c.model = b.model.trim();
           kvPut('ai', c); return json(res, 200, { ok: true, keySet: !!c.key, model: c.model || 'claude-sonnet-5-5' });
         }
       }
-      if (p === '/api/assistant/status') return json(res, 200, { on: !!cfg.key && aiAllowed(s), money: aiMoney(s) });
+      if (p === '/api/assistant/status') return json(res, 200, { on: !!cfg.key && aiAllowed(s), money: aiMoney(s), name: cfg.name || '' });
       if (!cfg.key || !aiAllowed(s)) return json(res, 403, { error: 'De assistent staat niet aan voor jou.' });
       const sid = sha(cookie(req));
       if (p === '/api/assistant/chat' && req.method === 'POST') {
