@@ -23,7 +23,8 @@ Zie `backup.sh`. Eenmalig instellen (op de server):
 6. Proef: `sudo ~/huis/cloud/backup.sh && tail /var/log/huis-backup.log`
 7. Dagelijks om 03:30: `echo '30 3 * * * root /home/joshua/huis/cloud/backup.sh' | sudo tee /etc/cron.d/huis-backup`
 
-Terugzetten: kopieer de mappen terug; daarna `sudo chown -R 33:33 cloud/nextcloud/html` voor Nextcloud.
+Terugzetten Nextcloud: start de stack eenmalig (maakt `html`), stop hem, kopieer `data`, `config`, `custom_apps` en `themes` uit de back-up terug naar `cloud/nextcloud/html`, `sudo chown -R 33:33 cloud/nextcloud/html`, start de database en laad `nextcloud-db.sql.gz` terug met `zcat ... | docker exec -i nextcloud-db-1 psql -U nextcloud nextcloud`.
+Terugzetten Immich: kopieer `immich-library` terug naar `cloud/immich/library` (de databasekopie staat in de submap `backups`).
 
 ## Automatisch bijwerken (wekelijks)
 `update.sh` haalt nieuwe versies van Immich en Nextcloud binnen, maar alleen als de back-up van vandaag is geslaagd.
