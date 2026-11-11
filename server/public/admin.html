@@ -119,6 +119,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <h2>Deurbel</h2>
    <p>Als er wordt aangebeld, krijgen Joshua en Lorenzo een melding op elk geopend scherm. Het dashboard zoekt zelf naar de deurbel in Home Assistant; vul hier alleen iets in als dat niet lukt.</p>
    <p id="bst" role="status"></p>
+   <label style="display:flex;gap:8px;align-items:center"><input id="bsay" type="checkbox" checked style="width:auto"> Ook omroepen op de speakers: "Er wordt aangebeld bij de voordeur"</label>
    <label for="bent">Entiteit van de deurbel (optioneel)</label><input id="bent" placeholder="event.voordeur_deurbel">
    <button id="bsave">Opslaan</button> <p id="bmsg2" role="status"></p>
   </div>
@@ -279,8 +280,8 @@ const ebgo=bank=>async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/a
 $('#ebgo').onclick=ebgo('rabo');$('#ebing').onclick=ebgo('ing');
 const ebun=(bank,n)=>async()=>{if(!confirm(n+' ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink',{bank});ebload()};
 $('#ebun').onclick=ebun('rabo','Rabobank');$('#ebuning').onclick=ebun('ing','ING');
-async function bellload(){const r=await api('GET','/api/bell/cfg');if(!r.ok)return;$('#bent').value=r.j.entity||'';$('#bst').textContent=r.j.fout?('Let op: '+r.j.fout+'.'):('Deurbel gevonden: '+r.j.gebruikt+'. Keer aangebeld sinds opstarten: '+r.j.aantal+'.')}
-$('#bsave').onclick=async()=>{const r=await api('PUT','/api/bell/cfg',{entity:$('#bent').value});say('#bmsg2',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');setTimeout(bellload,2500)};
+async function bellload(){const r=await api('GET','/api/bell/cfg');if(!r.ok)return;$('#bent').value=r.j.entity||'';$('#bsay').checked=r.j.say!==false;$('#bst').textContent=r.j.fout?('Let op: '+r.j.fout+'.'):('Deurbel gevonden: '+r.j.gebruikt+'. Keer aangebeld sinds opstarten: '+r.j.aantal+'.')}
+$('#bsave').onclick=async()=>{const r=await api('PUT','/api/bell/cfg',{entity:$('#bent').value,say:$('#bsay').checked});say('#bmsg2',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');setTimeout(bellload,2500)};
 async function aiload(){const r=await api('GET','/api/assistant/cfg');if(!r.ok)return;$('#aist').textContent=r.j.keySet?'Sleutel is ingesteld.':'Nog geen sleutel: de assistent staat uit.';$('#aimodel').value=r.j.model||'';$('#aictx').value=r.j.context||'';$('#aiweb').checked=r.j.web!==false;$('#ainame').value=r.j.name||'';$('#aialias').value=r.j.alias||''}
 $('#aisave').onclick=async()=>{const b={model:$('#aimodel').value,context:$('#aictx').value,web:$('#aiweb').checked,name:$('#ainame').value,alias:$('#aialias').value};if($('#aikey').value.trim())b.key=$('#aikey').value;const r=await api('PUT','/api/assistant/cfg',b);$('#aikey').value='';say('#aimsg',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');aiload()};
 $('#aiclear').onclick=async()=>{if(!confirm('Sleutel verwijderen? De assistent stopt dan.'))return;const r=await api('PUT','/api/assistant/cfg',{clear:true});say('#aimsg',r.ok?'Sleutel verwijderd.':'Mislukt',r.ok?'ok':'err');aiload()};
