@@ -1,0 +1,13 @@
+# Zet Immich op het netwerk van het dashboard en de Cloudflare-tunnel,
+# zodat de tunnel naar http://immich-web:2283 kan wijzen.
+services:
+  immich-server:
+    networks:
+      default: {}
+      huis:
+        aliases: [immich-web]
+
+networks:
+  huis:
+    external: true
+    name: huis_default

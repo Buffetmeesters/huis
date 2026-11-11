@@ -1,0 +1,13 @@
+# Zet Nextcloud op het netwerk van het dashboard en de Cloudflare-tunnel,
+# zodat de tunnel naar http://nextcloud-web:80 kan wijzen.
+services:
+  app:
+    networks:
+      default: {}
+      huis:
+        aliases: [nextcloud-web]
+
+networks:
+  huis:
+    external: true
+    name: huis_default
