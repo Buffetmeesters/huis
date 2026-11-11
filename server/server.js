@@ -820,19 +820,20 @@ http.createServer(async (req, res) => {
       const cfg = aiCfg();
       if (p === '/api/assistant/cfg') {
         if (!isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
-        if (req.method === 'GET') return json(res, 200, { keySet: !!cfg.key, model: cfg.model || 'claude-sonnet-5-5', context: cfg.context || '', web: cfg.web !== false, name: cfg.name || '' });
+        if (req.method === 'GET') return json(res, 200, { keySet: !!cfg.key, model: cfg.model || 'claude-sonnet-5-5', context: cfg.context || '', web: cfg.web !== false, name: cfg.name || '', alias: cfg.alias || '' });
         if (req.method === 'PUT') {
           const b = JSON.parse(await body(req)), c = { ...cfg };
           if (typeof b.key === 'string' && b.key.trim()) c.key = b.key.trim().slice(0, 300);
           if (b.clear === true) delete c.key;
           if (typeof b.context === 'string') c.context = b.context.slice(0, 2000);
           if (typeof b.web === 'boolean') c.web = b.web;
+          if (typeof b.alias === 'string') c.alias = b.alias.split(',').map(x => x.replace(/[^\p{L}\p{N} -]/gu, '').trim().toLowerCase()).filter(Boolean).slice(0, 12).join(', ').slice(0, 150);
           if (typeof b.name === 'string') c.name = b.name.replace(/[^\p{L}\p{N} -]/gu, '').trim().slice(0, 20);
           if (typeof b.model === 'string' && /^[\w.-]{3,60}$/.test(b.model.trim())) c.model = b.model.trim();
           kvPut('ai', c); return json(res, 200, { ok: true, keySet: !!c.key, model: c.model || 'claude-sonnet-5-5' });
         }
       }
-      if (p === '/api/assistant/status') return json(res, 200, { on: !!cfg.key && aiAllowed(s), money: aiMoney(s), mem: aiMoney(s), name: cfg.name || '' });
+      if (p === '/api/assistant/status') return json(res, 200, { on: !!cfg.key && aiAllowed(s), money: aiMoney(s), mem: aiMoney(s), name: cfg.name || '', alias: (cfg.alias || '').split(',').map(x => x.trim()).filter(Boolean) });
       if (p === '/api/assistant/mem') {
         if (!aiMoney(s)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
         if (req.method === 'GET') return json(res, 200, { mem: aiMemGet() });

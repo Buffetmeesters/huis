@@ -121,6 +121,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="aist" role="status"></p>
    <label for="aikey">Sleutel</label><input id="aikey" type="password" autocomplete="off" placeholder="Plak hier de sleutel">
    <label for="ainame">Naam van de assistent (optioneel)</label><input id="ainame" maxlength="20" placeholder="Bijvoorbeeld Kiwi">
+   <label for="aialias">Woorden die op de naam lijken (voor het roepwoord, gescheiden door komma's)</label><input id="aialias" maxlength="150" placeholder="Bijvoorbeeld: fictie, fixi">
    <label for="aictx">Wat moet de assistent van jullie huis weten? (optioneel)</label><textarea id="aictx" rows="4" placeholder="Bijvoorbeeld: Joshua en Lorenzo, hond Jolo, vogels Coco en Mango. Verhuizing naar Frans Staelstraat 29 op 1 december."></textarea>
    <label style="display:flex;gap:8px;align-items:center"><input id="aiweb" type="checkbox" checked style="width:auto"> Mag op internet zoeken (winkels, openingstijden, reistijden)</label>
    <label for="aimodel">Model</label><input id="aimodel" placeholder="claude-sonnet-5-5">
@@ -270,8 +271,8 @@ const ebgo=bank=>async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/a
 $('#ebgo').onclick=ebgo('rabo');$('#ebing').onclick=ebgo('ing');
 const ebun=(bank,n)=>async()=>{if(!confirm(n+' ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink',{bank});ebload()};
 $('#ebun').onclick=ebun('rabo','Rabobank');$('#ebuning').onclick=ebun('ing','ING');
-async function aiload(){const r=await api('GET','/api/assistant/cfg');if(!r.ok)return;$('#aist').textContent=r.j.keySet?'Sleutel is ingesteld.':'Nog geen sleutel: de assistent staat uit.';$('#aimodel').value=r.j.model||'';$('#aictx').value=r.j.context||'';$('#aiweb').checked=r.j.web!==false;$('#ainame').value=r.j.name||''}
-$('#aisave').onclick=async()=>{const b={model:$('#aimodel').value,context:$('#aictx').value,web:$('#aiweb').checked,name:$('#ainame').value};if($('#aikey').value.trim())b.key=$('#aikey').value;const r=await api('PUT','/api/assistant/cfg',b);$('#aikey').value='';say('#aimsg',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');aiload()};
+async function aiload(){const r=await api('GET','/api/assistant/cfg');if(!r.ok)return;$('#aist').textContent=r.j.keySet?'Sleutel is ingesteld.':'Nog geen sleutel: de assistent staat uit.';$('#aimodel').value=r.j.model||'';$('#aictx').value=r.j.context||'';$('#aiweb').checked=r.j.web!==false;$('#ainame').value=r.j.name||'';$('#aialias').value=r.j.alias||''}
+$('#aisave').onclick=async()=>{const b={model:$('#aimodel').value,context:$('#aictx').value,web:$('#aiweb').checked,name:$('#ainame').value,alias:$('#aialias').value};if($('#aikey').value.trim())b.key=$('#aikey').value;const r=await api('PUT','/api/assistant/cfg',b);$('#aikey').value='';say('#aimsg',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');aiload()};
 $('#aiclear').onclick=async()=>{if(!confirm('Sleutel verwijderen? De assistent stopt dan.'))return;const r=await api('PUT','/api/assistant/cfg',{clear:true});say('#aimsg',r.ok?'Sleutel verwijderd.':'Mislukt',r.ok?'ok':'err');aiload()};
 $('#pwgo').onclick=async()=>{const o=$('#pw0').value,n=$('#pw1').value;if(n!==$('#pw2').value)return say('#pwmsg','De twee nieuwe wachtwoorden zijn niet gelijk.','err');if(n.length<8)return say('#pwmsg','Het nieuwe wachtwoord moet minstens 8 tekens hebben.','err');const r=await api('POST','/api/password',{old:o,new:n});say('#pwmsg',r.ok?'Wachtwoord gewijzigd.':(r.j.error||'Mislukt'),r.ok?'ok':'err');if(r.ok){$('#pw0').value=$('#pw1').value=$('#pw2').value=''}};
 async function gload(){const r=await api('GET','/api/geo/cfg');if(!r.ok)return;const c=r.j;$('#gon').checked=c.on;$('#grad').value=c.radius;
