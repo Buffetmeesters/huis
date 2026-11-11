@@ -22,6 +22,7 @@ run() { "$@"; rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 24 ]; then echo "FOUT (code $
 if docker exec nextcloud-db-1 pg_dump -U nextcloud nextcloud | gzip > "$DEST/nextcloud-db.sql.gz.tmp"; then
   mv "$DEST/nextcloud-db.sql.gz.tmp" "$DEST/nextcloud-db.sql.gz"
 else echo "FOUT: database-dump van Nextcloud mislukt"; FOUT=1; fi
+mkdir -p "$DEST/nextcloud"
 for sub in data config custom_apps themes; do
   [ -d "$ROOT/cloud/nextcloud/html/$sub" ] && run $R --backup-dir="$DEST/verwijderd/$DAG/nextcloud/$sub" "$ROOT/cloud/nextcloud/html/$sub/" "$DEST/nextcloud/$sub/"
 done
