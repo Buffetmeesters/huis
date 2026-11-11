@@ -31,6 +31,10 @@ Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP
    Airco's: een ruimte onthoudt zijn airco (`room.ce`, entiteit in Home Assistant) en blijft zonder temperatuur staan als die verdwijnt. Zet oude ruimtes op "Niet gekoppeld" (Ruimtes, Airco in Home Assistant), verwijder de oude apparaten in Home Assistant, en koppel de nieuwe airco's in dezelfde keuzelijst (`HAC`); niet-gekoppelde staan ook in het klimaatoverzicht. Ander merk betekent andere entiteitnamen, dus alles opnieuw koppelen.
 5. `huis.`, `foto.` en `cloud.huizecpvh.nl` werken zonder wijziging (tunnel). Controleer de volgende ochtend de back-up: `tail -n 3 /var/log/huis-backup.log`.
 
+## Voor donderdag 12 november (Joshua is vrij)
+1. Eerst: back-up van vannacht controleren (`tail -n 3 /var/log/huis-backup.log`) en `sudo ~/huis/cloud/herstelproef.sh` nog eens draaien (Immich heeft dan zijn databasekopie).
+2. Daarna kiezen: (a) bewaking van de back-up in het dashboard (Admin-kaart met laatste back-up/update/schijfruimte; backup.sh schrijft dan een statusbestand naar `data/`, melding bij twee dagen zonder geslaagde back-up); (b) Fixie: timers/herinneringen, goedemorgen-overzicht op de tablet, agenda-afspraken maken met bevestigingsknop; (c) Huishoudboekje: jaaroverzicht per categorie met export inclusief bonnetjes, melding bij overschrijding maandbudget; (d) aanbellijst met tijdstippen en Fixie die kan antwoorden wie er aanbelde.
+
 ## Nog open (zie ook het Claude Doc "Huis-platform: wat staat er nog open")
 - Tapo-camera's (controleer eerst RTSP/ONVIF), live beeld van de Hue-deurbel.
 - Airco's door Fixie laten bedienen na installatie; cv-ketel Tado/slim thermostaat (merk en type nodig).
