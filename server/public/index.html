@@ -1125,6 +1125,13 @@ function awayScreen(){document.body.innerHTML='<main style="max-width:460px;marg
  document.getElementById('awo').onclick=()=>fetch('/api/logout',{method:'POST'}).finally(()=>location.href='/')}
 let SYNCING=0;async function syncData(){if(SYNCING||document.hidden)return;SYNCING=1;try{const r=await fetch('/api/state/data');if(r.status===403&&GUEST){location.reload();return}if(r.status!==200)return;const j=await r.json(),ae=document.activeElement;let ch=0;for(const k of['tasks','shop','afval','log']){if(Array.isArray(j[k])&&JSON.stringify(j[k])!==JSON.stringify(D[k])){D[k]=j[k];ch=1}}if(ch){if(!GUEST)try{localStorage.setItem('huis-d2',JSON.stringify(D))}catch(e){}resetDue();if(!(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)))render()}}catch(e){}finally{SYNCING=0}}
 setInterval(syncData,15000);if(GUEST&&ME.geo){setInterval(()=>geoPost(()=>{}),4*60e3)}document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncData()});
+let BELLN=null,BELLT=0;
+function bellShow(){let d=document.getElementById('bellbar');if(!d){d=document.createElement('div');d.id='bellbar';d.setAttribute('role','alert');d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:calc(14px + env(safe-area-inset-top,0px));width:min(92vw,420px);background:#e8920f;color:#2a1a00;padding:16px 18px;border-radius:16px;z-index:120;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:1.05rem;font-weight:700;display:flex;gap:12px;align-items:center';d.innerHTML='<span style="flex:1">🔔 Er wordt aangebeld bij de voordeur</span><button type="button" style="font:inherit;font-weight:600;padding:8px 14px;border-radius:10px;border:0;background:#2a1a00;color:#fff">Sluiten</button>';d.querySelector('button').onclick=()=>{d.style.display='none'};document.body.appendChild(d)}
+d.style.display='flex';clearTimeout(d._t);d._t=setTimeout(()=>{d.style.display='none'},60000);
+try{navigator.vibrate&&navigator.vibrate([300,150,300])}catch(e){}
+try{const A=new (window.AudioContext||window.webkitAudioContext)();[0,.45].forEach((t,i)=>{const o=A.createOscillator(),g=A.createGain();o.frequency.value=i?660:880;o.connect(g);g.connect(A.destination);g.gain.setValueAtTime(.25,A.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,A.currentTime+t+.4);o.start(A.currentTime+t);o.stop(A.currentTime+t+.45)})}catch(e){}}
+async function bellPoll(){if(document.hidden||GUEST||!ME||ME.role==='guest')return;try{const r=await fetch('/api/bell');if(!r.ok)return;const j=await r.json();if(BELLN===null){BELLN=j.n;return}if(j.n>BELLN){BELLN=j.n;if(j.now-j.at<120000)bellShow()}}catch(e){}}
+setInterval(bellPoll,3000);bellPoll();
 pollLights(true);setInterval(pollLights,4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollLights(true)});
 })();
 </script>

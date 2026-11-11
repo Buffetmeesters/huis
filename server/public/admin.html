@@ -116,6 +116,14 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card">
+   <h2>Deurbel</h2>
+   <p>Als er wordt aangebeld, krijgen Joshua en Lorenzo een melding op elk geopend scherm. Het dashboard zoekt zelf naar de deurbel in Home Assistant; vul hier alleen iets in als dat niet lukt.</p>
+   <p id="bst" role="status"></p>
+   <label for="bent">Entiteit van de deurbel (optioneel)</label><input id="bent" placeholder="event.voordeur_deurbel">
+   <button id="bsave">Opslaan</button> <p id="bmsg2" role="status"></p>
+  </div>
+
+  <div class="card">
    <h2>AI-assistent</h2>
    <p>De assistent gebruikt een eigen sleutel van de AI-dienst (Anthropic). Plak die hier; hij wordt niet teruggetoond. Joshua en Lorenzo hebben de assistent altijd, gasten krijgen hem per gast onder Familie &amp; Gasten. Het Huishoudboekje is alleen voor Joshua en Lorenzo leesbaar.</p>
    <p id="aist" role="status"></p>
@@ -271,6 +279,8 @@ const ebgo=bank=>async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/a
 $('#ebgo').onclick=ebgo('rabo');$('#ebing').onclick=ebgo('ing');
 const ebun=(bank,n)=>async()=>{if(!confirm(n+' ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink',{bank});ebload()};
 $('#ebun').onclick=ebun('rabo','Rabobank');$('#ebuning').onclick=ebun('ing','ING');
+async function bellload(){const r=await api('GET','/api/bell/cfg');if(!r.ok)return;$('#bent').value=r.j.entity||'';$('#bst').textContent=r.j.fout?('Let op: '+r.j.fout+'.'):('Deurbel gevonden: '+r.j.gebruikt+'. Keer aangebeld sinds opstarten: '+r.j.aantal+'.')}
+$('#bsave').onclick=async()=>{const r=await api('PUT','/api/bell/cfg',{entity:$('#bent').value});say('#bmsg2',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');setTimeout(bellload,2500)};
 async function aiload(){const r=await api('GET','/api/assistant/cfg');if(!r.ok)return;$('#aist').textContent=r.j.keySet?'Sleutel is ingesteld.':'Nog geen sleutel: de assistent staat uit.';$('#aimodel').value=r.j.model||'';$('#aictx').value=r.j.context||'';$('#aiweb').checked=r.j.web!==false;$('#ainame').value=r.j.name||'';$('#aialias').value=r.j.alias||''}
 $('#aisave').onclick=async()=>{const b={model:$('#aimodel').value,context:$('#aictx').value,web:$('#aiweb').checked,name:$('#ainame').value,alias:$('#aialias').value};if($('#aikey').value.trim())b.key=$('#aikey').value;const r=await api('PUT','/api/assistant/cfg',b);$('#aikey').value='';say('#aimsg',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');aiload()};
 $('#aiclear').onclick=async()=>{if(!confirm('Sleutel verwijderen? De assistent stopt dan.'))return;const r=await api('PUT','/api/assistant/cfg',{clear:true});say('#aimsg',r.ok?'Sleutel verwijderd.':'Mislukt',r.ok?'ok':'err');aiload()};
@@ -301,7 +311,7 @@ $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{pa
   const c=await api('GET','/api/ha/config');if(c.ok){if(c.j.url)$('#u').value=c.j.url;if(c.j.tokenSet){say('#ts','Token is opgeslagen op de server.');test()}}
   const g0=await api('GET','/api/google/config');if(g0.ok&&g0.j.idSet)say('#gst','Client-ID en geheim zijn opgeslagen op de server.');
   const t=await api('GET','/api/cf/token');if(t.ok&&t.j.set)say('#cs','Tunneltoken is opgeslagen op de server.');
-  gload();bload();ebload();aiload();const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
+  gload();bload();ebload();aiload();bellload();const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
  }else if(me.j.canCreateAdmin){$('#create').hidden=false;$('#who').textContent='Er is nog geen beheerder ingesteld.'}
  else location.href='/';
 })();

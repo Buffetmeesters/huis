@@ -400,6 +400,29 @@ function turnOnData(entity, b) {
 }
 function haErr(e) { return /^Home Assistant antwoordde/.test(e.message) ? e.message : 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message); }
 function haCfg() { const r = q.get.get('ha'); const c = r ? JSON.parse(r.v) : null; return c && c.url && c.token ? c : null; }
+// Deurbel: kijkt in HomeAssistant of de deurbel is ingedrukt (event- of binary_sensor-entiteit)
+const bell = { n: 0, at: 0, ent: '', last: null, err: '' };
+function bellCfg() { const r = q.get.get('bell'); try { return r ? JSON.parse(r.v) : {}; } catch { return {}; } }
+async function bellTick() {
+  const cfg = haCfg(); if (!cfg) { bell.err = 'Home Assistant is niet gekoppeld'; return; }
+  try {
+    let ent = (bellCfg().entity || '').trim();
+    if (!ent) {
+      const all = await haCall(cfg, '/api/states');
+      const c = all.filter(e => /^(event|binary_sensor)\./.test(e.entity_id) && /deurbel|doorbell|door_bell/i.test(e.entity_id + ' ' + (e.attributes.friendly_name || '')));
+      c.sort((a, b) => (a.entity_id.startsWith('event.') ? 0 : 1) - (b.entity_id.startsWith('event.') ? 0 : 1));
+      ent = c[0] ? c[0].entity_id : '';
+      if (!ent) { bell.ent = ''; bell.err = 'Geen deurbel gevonden in Home Assistant'; return; }
+    }
+    const st = await haCall(cfg, '/api/states/' + encodeURIComponent(ent));
+    bell.err = ''; if (bell.ent !== ent) { bell.ent = ent; bell.last = null; }
+    const v = String(st.state);
+    if (v === 'unavailable' || v === 'unknown') return;
+    if (bell.last !== null && v !== bell.last && (ent.startsWith('event.') || v === 'on')) { bell.n++; bell.at = Date.now(); }
+    bell.last = v;
+  } catch (e) { bell.err = haErr(e); }
+}
+setTimeout(bellTick, 8000); setInterval(bellTick, 3000);
 const DEF_ROOMS = [['woon','Woonkamer'],['keuken','Keuken'],['hal','Hal'],['voordeur','Voordeur'],['hal2','Hal bij trap'],['toilet','Toilet'],['tuin','Tuin'],['sl14','Onze slaapkamer'],['sl12','Logeerkamer'],['sl9','Gamekamer'],['bad','Badkamer'],['ol1','Overloop 1e verdieping'],['sl13','Slaapkamer Dennis'],['zolder','Zolder'],['ol2','Overloop zolder']].map(([id, name]) => ({ id, name }));
 function roomList() { const r = loadRooms(); return r.length ? r : DEF_ROOMS; }
 function loadRooms() { const r = q.get.get('rooms'); try { const x = r ? JSON.parse(r.v) : []; return Array.isArray(x) ? x : []; } catch { return []; } }
@@ -814,6 +837,22 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    if (p === '/api/bell') {
+      const s = session(req);
+      if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
+      return json(res, 200, { n: bell.n, at: bell.at, now: Date.now() });
+    }
+    if (p === '/api/bell/cfg') {
+      const s = session(req);
+      if (!s || !isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      if (req.method === 'PUT') {
+        const b = JSON.parse(await body(req)); const e = String(b.entity || '').trim();
+        if (e && !/^(event|binary_sensor)\.[\w]+$/.test(e)) return json(res, 400, { error: 'Dat is geen geldige entiteit (bijvoorbeeld event.deurbel_deurbel).' });
+        q.put.run('bell', JSON.stringify({ entity: e }), Date.now()); bell.ent = ''; bell.last = null; bellTick().catch(() => {});
+        return json(res, 200, { ok: true });
+      }
+      return json(res, 200, { entity: bellCfg().entity || '', gebruikt: bell.ent, fout: bell.err, aantal: bell.n });
+    }
     if (p.startsWith('/api/assistant/')) {
       const s = session(req);
       if (!s) return json(res, 401, { error: 'Niet ingelogd' });
