@@ -1,1 +1,6 @@
 data/
+cloud/*/.env
+cloud/immich/library/
+cloud/immich/postgres/
+cloud/nextcloud/db/
+cloud/nextcloud/html/
