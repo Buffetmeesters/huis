@@ -25,6 +25,16 @@ select,textarea{width:100%;padding:12px;border-radius:12px;border:1px solid var(
 ol{list-style:decimal;margin:8px 0 0}ol li{display:list-item;border:0;padding:4px 0}
 ul{list-style:none;padding:0;margin:8px 0 0}li{padding:8px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
 li span:last-child{color:var(--mute);white-space:nowrap}
+.wrap{max-width:1180px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0}
+.tabs button{margin:0;padding:8px 14px;border-radius:999px;background:var(--surf);border:1px solid var(--line);color:var(--mute);font-weight:600}
+.tabs button[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.grid{column-count:1;column-gap:14px}
+.grid>.card{margin:0 0 14px;break-inside:avoid;display:inline-block;width:100%}
+.grid>.card{overflow-wrap:anywhere}
+.grid>.card.off,.grid>.card[hidden]{display:none}
+@media (min-width:760px){.grid{column-count:2}}
+@media (min-width:1100px){.grid{column-count:3}}
 </style>
 </head>
 <body>
@@ -43,7 +53,15 @@ li span:last-child{color:var(--mute);white-space:nowrap}
  </div>
 
  <div id="admin" hidden>
-  <div class="card">
+  <nav class="tabs" id="tabs" aria-label="Onderdelen">
+   <button type="button" data-t="alles">Alles</button>
+   <button type="button" data-t="k">Koppelingen</button>
+   <button type="button" data-t="a">Assistent en huis</button>
+   <button type="button" data-t="b">Beveiliging en back-up</button>
+   <button type="button" data-t="s">Server</button>
+  </nav>
+  <div class="grid" id="agrid">
+  <div class="card" data-g="k">
    <h2>Home Assistant</h2>
    <label for="u">Adres van Home Assistant</label>
    <input id="u" value="http://192.168.178.68" autocapitalize="off">
@@ -54,7 +72,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="msg" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="k">
    <h2>Adres zoeken (na de verhuizing)</h2>
    <p>Vul de eerste drie getallen van het nieuwe netwerk in. Je ziet die bij een apparaat in de nieuwe router, bijvoorbeeld <code>192.168.1</code>. Het dashboard zoekt dan zelf naar Home Assistant.</p>
    <label for="pf">Netwerk</label>
@@ -64,7 +82,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <ul id="found"></ul>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="k">
    <h2>Internettoegang (Cloudflare)</h2>
    <p>Plak hier het tunneltoken uit Cloudflare. De tunnel start daarna vanzelf, meestal binnen een minuut. Een nieuw adres in huis verandert niets aan de tunnel.</p>
    <label for="ct">Tunneltoken</label>
@@ -74,7 +92,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="cmsg" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="k">
    <h2>Google Agenda</h2>
    <p>Maak eerst bij Google een OAuth-client (webtoepassing) en vul hier de twee gegevens in. Joshua en Lorenzo koppelen daarna zelf hun agenda vanuit het tabblad Agenda.</p>
    <p>Omleidings-URI bij Google: <code id="gr">https://huis.huizecpvh.nl/api/google/callback</code></p>
@@ -87,7 +105,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="gmsg" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="a">
    <h2>Film kijken</h2>
    <p>Kies welke lampen dimmen en welke Sync Box-onderdelen aan gaan als je op Film kijken drukt. Bij Film afgelopen gaan de lampen terug naar hoe ze stonden en de Sync Box uit.</p>
    <button id="fload">Lampen en Sync Box ophalen</button>
@@ -95,7 +113,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <div id="fform"></div>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="k">
    <h2>Sensoren (Hue-beweging)</h2>
    <p>Haalt alle bewegings-, temperatuur-, licht- en batterijsensoren op zoals Home Assistant ze nu doorgeeft. Kies per ruimte de bewegingssensor; temperatuur, licht en batterij van hetzelfde apparaat worden automatisch erbij gezocht.</p>
    <button id="sload">Sensoren ophalen</button>
@@ -104,7 +122,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <ul id="slist"></ul>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="k">
    <h2>Bank koppelen (Enable Banking)</h2>
    <p>Hiermee haalt het Huishoudboekje de Rabobank-afschriften zelf op, een paar keer per dag. Alleen Joshua en Lorenzo zien de boekingen. Maak eerst een gratis account en een <b>Production</b>-applicatie op enablebanking.com met als terugkeer-adres <code>https://huis.huizecpvh.nl/api/bank/cb</code>. Kies het .pem-bestand uit die applicatie hieronder, dus niet in een chat plakken. De sleutel staat daarna in de database en dus ook in de back-up.</p>
    <label for="ebid">Application ID</label><input id="ebid" autocomplete="off">
@@ -115,7 +133,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p>Bij het koppelen log je in met de Rabo Bankieren-app en geef je toestemming voor alleen-lezen inzage. Die toestemming loopt na enkele maanden af; dan moet je hier opnieuw koppelen.</p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="k">
    <h2>Deurbel</h2>
    <p>Als er wordt aangebeld, krijgen Joshua en Lorenzo een melding op elk geopend scherm. Het dashboard zoekt zelf naar de deurbel in Home Assistant; vul hier alleen iets in als dat niet lukt.</p>
    <p id="bst" role="status"></p>
@@ -124,7 +142,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <button id="bsave">Opslaan</button> <p id="bmsg2" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="a">
    <h2>AI-assistent</h2>
    <p>De assistent gebruikt een eigen sleutel van de AI-dienst (Anthropic). Plak die hier; hij wordt niet teruggetoond. Joshua en Lorenzo hebben de assistent altijd, gasten krijgen hem per gast onder Familie &amp; Gasten. Het Huishoudboekje is alleen voor Joshua en Lorenzo leesbaar.</p>
    <p id="aist" role="status"></p>
@@ -138,7 +156,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="aimsg" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="b">
    <h2>Wachtwoord wijzigen</h2>
    <p>Wijzig het wachtwoord van de Admin-login. Op andere apparaten word je daarna uitgelogd.</p>
    <label for="pw0">Huidig wachtwoord</label><input id="pw0" type="password" autocomplete="current-password">
@@ -148,7 +166,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="pwmsg" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="b">
    <h2>Back-up</h2>
    <p>Elke nacht maakt de server automatisch een kopie van alle gegevens (gebruikers, taken, recepten, instellingen). De laatste 20 blijven bewaard op de server in de map <code>data/backups</code>. Download af en toe een kopie en bewaar die ergens anders (bijvoorbeeld op je computer of in de cloud). Dan ben je ook veilig als de hele server uitvalt.</p>
    <button id="bnow">Nu een back-up maken</button>
@@ -157,7 +175,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p><b>Terugzetten:</b> stop de app (<code>docker compose stop huis</code>), kopieer het gekozen bestand naar <code>data/huis.db</code> (<code>cp data/backups/BESTAND data/huis.db</code>) en start weer (<code>docker compose start huis</code>). De back-up bevat ook wachtwoorden en sleutels: deel hem met niemand.</p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="a">
    <h2>Gasten alleen thuis</h2>
    <p>Familie en gasten (behalve wie “altijd toegang” heeft) kunnen de app alleen gebruiken via het wifi van thuis, of met hun locatie dichtbij het huis. Joshua en Lorenzo hebben er geen last van. Stel dit in als je thuis bent, ook na de verhuizing opnieuw.</p>
    <label><input id="gon" type="checkbox" style="width:auto"> Alleen thuis aan</label>
@@ -170,7 +188,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <ul id="gips"></ul>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="b">
    <h2>Wachtwoord opnieuw instellen</h2>
    <p>Als Joshua of Lorenzo zijn wachtwoord kwijt is. Hij wordt overal uitgelogd.</p>
    <label for="rn">Account</label>
@@ -181,7 +199,7 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <p id="rmsg" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-g="s">
    <h2>Verhuizing: wat te doen</h2>
    <ol style="color:var(--mute);padding-left:20px">
     <li>Sluit de server en Home Assistant aan op de nieuwe router en start ze.</li>
@@ -192,9 +210,10 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    </ol>
   </div>
 
-  <div class="card"><h2>Server</h2><p id="info"></p></div>
+  <div class="card" data-g="s"><h2>Server</h2><p id="info"></p></div>
 
-  <div class="card" id="ents" hidden><h2>Gevonden apparaten</h2><p id="cnt"></p><ul id="list"></ul></div>
+  <div class="card" data-g="s" id="ents" hidden><h2>Gevonden apparaten</h2><p id="cnt"></p><ul id="list"></ul></div>
+  </div>
  </div>
 </div>
 <script>
@@ -316,6 +335,10 @@ $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{pa
  }else if(me.j.canCreateAdmin){$('#create').hidden=false;$('#who').textContent='Er is nog geen beheerder ingesteld.'}
  else location.href='/';
 })();
+
+(function(){const T=document.getElementById('tabs');if(!T)return;let cur='alles';try{cur=localStorage.getItem('huis.admintab')||'alles'}catch(e){}
+function set(t){cur=t;try{localStorage.setItem('huis.admintab',t)}catch(e){}T.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));document.querySelectorAll('#agrid>.card').forEach(c=>c.classList.toggle('off',t!=='alles'&&c.dataset.g!==t))}
+T.onclick=e=>{const b=e.target.closest('button');if(b)set(b.dataset.t)};set(cur)})();
 </script>
 </body>
 </html>
