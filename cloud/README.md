@@ -31,3 +31,6 @@ Terugzetten Immich: kopieer `immich-library` terug naar `cloud/immich/library` (
 Aanzetten (zondag 04:30, na de back-up van 03:30):
 `echo '30 4 * * 0 root /home/joshua/huis/cloud/update.sh' | sudo tee /etc/cron.d/huis-update`
 Logboek: `/var/log/huis-update.log`. Het dashboard zelf werk je handmatig bij (`git pull` en `docker compose up -d --build`).
+
+## Herstelproef
+`sudo ~/huis/cloud/herstelproef.sh` test of de back-up terug te zetten is (dashboard-database, Nextcloud-database in een tijdelijke database, aantallen en een steekproef van de bestanden). Verandert niets aan de echte gegevens. Doe dit een keer per maand.

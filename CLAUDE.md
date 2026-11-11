@@ -8,7 +8,7 @@ Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP
 - Dashboard: `server/server.js` (Node, node:sqlite, kv-tabel) en een bestand per pagina in `server/public/`: `index.html` (client), `admin.html`, `login.html`, `privacy.html`. Docker compose in de root; data in `data/` (niet in git).
 - Draait op de Ubuntu-VM `docker` (Hyper-V op een Windows Server 2022; VM 500 GB schijf, 8 GB geheugen, 2 processors). Home Assistant draait in een tweede VM.
 - Internet: Cloudflare-tunnel "Huis" (container `cloudflared`, token in `data/cf-token`). `huis.huizecpvh.nl` wijst naar het dashboard. `foto.` en `cloud.` wijzen naar `http://immich-web:2283` en `http://nextcloud-web:80` (containernamen op het netwerk `huis_default`, dus onafhankelijk van IP-adressen).
-- Cloud: map `cloud/` met Immich (foto's) en Nextcloud (bestanden, thema "Huis CPvH", tweestapsverificatie aan), `start.sh`, `backup.sh` (elke nacht 03:30 naar de Windows-schijf P: via /mnt/backup), `update.sh` (zondag 04:30, alleen na geslaagde back-up), `verhuis.sh`. Immich heeft geen tweestapsverificatie; daar zijn lange unieke wachtwoorden de bescherming.
+- Cloud: map `cloud/` met Immich (foto's) en Nextcloud (bestanden, thema "Huis CPvH", tweestapsverificatie aan), `start.sh`, `backup.sh` (elke nacht 03:30 naar de Windows-schijf P: via /mnt/backup), `update.sh` (zondag 04:30, alleen na geslaagde back-up), `verhuis.sh`, `herstelproef.sh` (test of de back-up echt terug te zetten is, verandert niets aan de echte gegevens). Immich heeft geen tweestapsverificatie; daar zijn lange unieke wachtwoorden de bescherming.
 - Dashboard bijwerken: `git pull` en `docker compose up -d --build`. Dit gaat handmatig (niet automatiseren).
 
 ## Beveiliging, niet versoepelen
@@ -28,6 +28,7 @@ Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP
 2. `sudo ~/huis/cloud/verhuis.sh <IP-van-Windows-computer>` (past back-upmap en Nextcloud aan).
 3. Dashboard, Admin, "Adres zoeken (na de verhuizing)": zoekt Home Assistant op het nieuwe netwerk, kies het adres, opslaan en testen.
 4. Controleren of Hue, Sync Box en speakers weer verbonden zijn; zo niet opnieuw toevoegen in Home Assistant.
+   Airco's: een ruimte onthoudt zijn airco (`room.ce`, entiteit in Home Assistant) en blijft zonder temperatuur staan als die verdwijnt. Zet oude ruimtes op "Niet gekoppeld" (Ruimtes, Airco in Home Assistant), verwijder de oude apparaten in Home Assistant, en koppel de nieuwe airco's in dezelfde keuzelijst (`HAC`); niet-gekoppelde staan ook in het klimaatoverzicht. Ander merk betekent andere entiteitnamen, dus alles opnieuw koppelen.
 5. `huis.`, `foto.` en `cloud.huizecpvh.nl` werken zonder wijziging (tunnel). Controleer de volgende ochtend de back-up: `tail -n 3 /var/log/huis-backup.log`.
 
 ## Nog open (zie ook het Claude Doc "Huis-platform: wat staat er nog open")
