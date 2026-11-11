@@ -755,7 +755,7 @@ assistent(){
  if(A.on==null&&!A.ld){A.ld=1;fetch('/api/assistant/status').then(r=>r.ok?r.json():{on:false}).then(j=>{A.on=!!j.on;A.money=!!j.money;render()}).catch(()=>{A.on=false;render()})}
  if(A.on==null)return '<h2>Assistent</h2><p class="state">Laden…</p>';
  if(!A.on)return '<h2>Assistent</h2><p class="state">De assistent staat nog niet aan. De beheerder vult in Admin de sleutel in en zet hem per gast aan onder Familie &amp; Gasten.</p>';
- const bub=(x)=>`<div style="display:flex;justify-content:${x.role==='user'?'flex-end':'flex-start'};margin:6px 0"><div style="max-width:86%;padding:9px 13px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;background:${x.role==='user'?'#7c5cf0':x.err?'#4a2127':'#232333'};color:#f2f2f8">${esc(x.content)}</div></div>`;
+ const bub=(x)=>`<div style="display:flex;justify-content:${x.role==='user'?'flex-end':'flex-start'};margin:6px 0"><div style="max-width:86%;padding:9px 13px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;background:${x.role==='user'?'#7c5cf0':x.err?'#4a2127':'#232333'};color:#f2f2f8">${esc(x.content).replace(/https?:\/\/[^\s<]+/g,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#c4b5fd">${u}</a>`)}</div></div>`;
  let h='<h2>Assistent</h2>';
  h+=`<p class="state">Vraag iets over taken, boodschappen, agenda, recepten of lampen${A.money?' en het Huishoudboekje (alleen lezen)':''}. Acties voer ik pas uit na jouw bevestiging.</p>`;
  h+='<div class="card" style="min-height:140px">'+(A.m.length?A.m.map(bub).join(''):'<p class="state" style="margin:0">Probeer: "Wat staat er morgen in de agenda?" of "Zet de lamp boven de eettafel uit."</p>');
