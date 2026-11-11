@@ -24,3 +24,9 @@ Zie `backup.sh`. Eenmalig instellen (op de server):
 7. Dagelijks om 03:30: `echo '30 3 * * * root /home/joshua/huis/cloud/backup.sh' | sudo tee /etc/cron.d/huis-backup`
 
 Terugzetten: kopieer de mappen terug; daarna `sudo chown -R 33:33 cloud/nextcloud/html` voor Nextcloud.
+
+## Automatisch bijwerken (wekelijks)
+`update.sh` haalt nieuwe versies van Immich en Nextcloud binnen, maar alleen als de back-up van vandaag is geslaagd.
+Aanzetten (zondag 04:30, na de back-up van 03:30):
+`echo '30 4 * * 0 root /home/joshua/huis/cloud/update.sh' | sudo tee /etc/cron.d/huis-update`
+Logboek: `/var/log/huis-update.log`. Het dashboard zelf werk je handmatig bij (`git pull` en `docker compose up -d --build`).
