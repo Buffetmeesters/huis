@@ -214,6 +214,10 @@ li span:last-child{color:var(--mute);white-space:nowrap}
    <h2>Back-up en updates</h2>
    <p id="bk" role="status"></p>
    <ul id="bkl" style="color:var(--mute);padding-left:20px"></ul>
+   <label for="bkn">Telefoonmelding via Home Assistant (dienst, bijvoorbeeld <code>notify.mobile_app_pixel</code>)</label>
+   <input id="bkn" placeholder="notify.mobile_app_...">
+   <button id="bksave">Opslaan</button> <button id="bktest">Opslaan en testmelding</button>
+   <p id="bkmsg" role="status"></p>
   </div>
 
   <div class="card" data-g="s"><h2>Server</h2><p id="info"></p></div>
@@ -313,7 +317,10 @@ const L=[];if(j.backup&&!j.backup.ok)L.push('De laatste back-up ('+dt(j.backup.a
 if(j.backup&&j.backup.total)L.push('Back-upschijf: '+gb(j.backup.free)+' vrij van '+gb(j.backup.total)+'.');
 if(j.vm)L.push('Serverschijf: '+gb(j.vm.free)+' vrij van '+gb(j.vm.total)+'.');
 if(j.update)L.push(j.update.skipped?'Laatste update overgeslagen ('+dt(j.update.at)+'): geen geslaagde back-up.':'Laatste update: '+dt(j.update.at)+'.');else L.push('Nog geen update geregistreerd (zondag 04:30).');
+$('#bkn').value=j.service||'';if(j.fout)L.push('Melding versturen mislukte: '+j.fout);
 $('#bkl').innerHTML=L.map(x=>'<li>'+x+'</li>').join('')}
+$('#bksave').onclick=()=>bksv(false);$('#bktest').onclick=()=>bksv(true);
+async function bksv(t){const r=await api('PUT','/api/admin/status',{service:$('#bkn').value,test:t});say('#bkmsg',r.ok?(t?'Opgeslagen, testmelding verstuurd.':'Opgeslagen.'):(r.j.error||'Mislukt'),r.ok?'ok':'err')}
 async function bellload(){const r=await api('GET','/api/bell/cfg');if(!r.ok)return;$('#bent').value=r.j.entity||'';$('#bsay').checked=r.j.say!==false;$('#bst').textContent=r.j.fout?('Let op: '+r.j.fout+'.'):('Deurbel gevonden: '+r.j.gebruikt+'. Keer aangebeld sinds opstarten: '+r.j.aantal+'.')}
 $('#bsave').onclick=async()=>{const r=await api('PUT','/api/bell/cfg',{entity:$('#bent').value,say:$('#bsay').checked});say('#bmsg2',r.ok?'Opgeslagen.':(r.j.error||'Mislukt'),r.ok?'ok':'err');setTimeout(bellload,2500)};
 async function aiload(){const r=await api('GET','/api/assistant/cfg');if(!r.ok)return;$('#aist').textContent=r.j.keySet?'Sleutel is ingesteld.':'Nog geen sleutel: de assistent staat uit.';$('#aimodel').value=r.j.model||'';$('#aictx').value=r.j.context||'';$('#aiweb').checked=r.j.web!==false;$('#ainame').value=r.j.name||'';$('#aialias').value=r.j.alias||''}

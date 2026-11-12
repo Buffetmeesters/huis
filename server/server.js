@@ -434,6 +434,27 @@ async function bellTick() {
   } catch (e) { bell.err = haErr(e); }
 }
 setTimeout(bellTick, 8000); setInterval(bellTick, 3000);
+// Back-upbewaking: melding via Home Assistant (telefoon) als er 2 dagen geen geslaagde back-up is of de laatste fouten had.
+const bkRead = f => { try { return JSON.parse(fs.readFileSync(`${DATA}/status/${f}`, 'utf8')); } catch { return null; } };
+const bkLastOk = () => { try { return Number(fs.readFileSync(`${DATA}/status/backup-ok`, 'utf8')) || null; } catch { return null; } };
+const bkn = { at: 0, err: '' };
+async function bkSend(cfg, tekst) {
+  const svc = String((kvGet('bkn') || {}).service || '');
+  await haCall(cfg, '/api/services/persistent_notification/create', { title: 'Back-up Huis', message: tekst });
+  if (/^notify\.[\w]+$/.test(svc)) await haCall(cfg, '/api/services/notify/' + svc.slice(7), { title: 'Back-up Huis', message: tekst });
+}
+async function bkTick() {
+  try {
+    const cfg = haCfg(); if (!cfg || !cfg.url) return;
+    const lo = bkLastOk(), b = bkRead('backup.json');
+    const bad = (lo && Date.now() - lo > 2 * 864e5) || (b && b.ok === false && Date.now() - (lo || 0) > 864e5);
+    if (!bad || Date.now() - bkn.at < 24 * 36e5) return;
+    bkn.at = Date.now();
+    await bkSend(cfg, 'Er is al meer dan twee dagen geen geslaagde back-up van het huisplatform. Kijk in Admin, Back-up en updates.');
+    bkn.err = '';
+  } catch (e) { bkn.err = String(e.message || e).slice(0, 150); }
+}
+setTimeout(bkTick, 60000); setInterval(bkTick, 36e5);
 const DEF_ROOMS = [['woon','Woonkamer'],['keuken','Keuken'],['hal','Hal'],['voordeur','Voordeur'],['hal2','Hal bij trap'],['toilet','Toilet'],['tuin','Tuin'],['sl14','Onze slaapkamer'],['sl12','Logeerkamer'],['sl9','Gamekamer'],['bad','Badkamer'],['ol1','Overloop 1e verdieping'],['sl13','Slaapkamer Dennis'],['zolder','Zolder'],['ol2','Overloop zolder']].map(([id, name]) => ({ id, name }));
 function roomList() { const r = loadRooms(); return r.length ? r : DEF_ROOMS; }
 function loadRooms() { const r = q.get.get('rooms'); try { const x = r ? JSON.parse(r.v) : []; return Array.isArray(x) ? x : []; } catch { return []; } }
@@ -856,10 +877,15 @@ http.createServer(async (req, res) => {
     if (p === '/api/admin/status') {
       const s = session(req);
       if (!s || !isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
-      const rd = f => { try { return JSON.parse(fs.readFileSync(`${DATA}/status/${f}`, 'utf8')); } catch { return null; } };
-      let lastOk = null; try { lastOk = Number(fs.readFileSync(`${DATA}/status/backup-ok`, 'utf8')) || null; } catch {}
+      if (req.method === 'PUT') {
+        const b = JSON.parse(await body(req)); const v = String(b.service || '').trim();
+        if (v && !/^notify\.[\w]+$/.test(v)) return json(res, 400, { error: 'Dat is geen geldige dienst (bijvoorbeeld notify.mobile_app_pixel).' });
+        q.put.run('bkn', JSON.stringify({ service: v }), Date.now());
+        if (b.test) { try { await bkSend(haCfg(), 'Dit is een testmelding van het huisplatform.'); } catch (e) { return json(res, 502, { error: 'Versturen mislukt: ' + String(e.message || e).slice(0, 150) }); } }
+        return json(res, 200, { ok: true });
+      }
       let vm = null; try { const st = fs.statfsSync(DATA); vm = { free: st.bavail * st.bsize, total: st.blocks * st.bsize }; } catch {}
-      return json(res, 200, { now: Date.now(), backup: rd('backup.json'), lastOk, update: rd('update.json'), vm });
+      return json(res, 200, { now: Date.now(), backup: bkRead('backup.json'), lastOk: bkLastOk(), update: bkRead('update.json'), vm, service: (kvGet('bkn') || {}).service || '', fout: bkn.err });
     }
     if (p === '/api/bell/cfg') {
       const s = session(req);
