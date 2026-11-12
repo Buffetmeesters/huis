@@ -211,6 +211,15 @@ li span:last-child{color:var(--mute);white-space:nowrap}
   </div>
 
   <div class="card" data-g="s">
+   <h2>Bewegende achtergrond</h2>
+   <p>Op de bovenste kaart van het dashboard bewegen regen, sneeuw, bladeren en feestdageffecten. Hier zet je ze aan of uit voor alle schermen (ook van gasten). Toestellen met "minder beweging" zien ze nooit.</p>
+   <label style="display:flex;gap:8px;align-items:center"><input id="fxw" type="checkbox" style="width:auto"> Weer: regen, onweer, sneeuw en mist</label>
+   <label style="display:flex;gap:8px;align-items:center"><input id="fxs" type="checkbox" style="width:auto"> Seizoen: bladeren, bloesem en sterren</label>
+   <label style="display:flex;gap:8px;align-items:center"><input id="fxf" type="checkbox" style="width:auto"> Feestdagen: Kerst, Oud en nieuw, Halloween, Sinterklaas, Koningsdag, Carnaval en Pasen</label>
+   <button id="fxsave">Opslaan</button> <p id="fxmsg" role="status"></p>
+  </div>
+
+  <div class="card" data-g="s">
    <h2>Back-up en updates</h2>
    <p id="bk" role="status"></p>
    <ul id="bkl" style="color:var(--mute);padding-left:20px"></ul>
@@ -309,6 +318,8 @@ const ebgo=bank=>async()=>{say('#ebmsg','Bezig…');const r=await api('POST','/a
 $('#ebgo').onclick=ebgo('rabo');$('#ebing').onclick=ebgo('ing');
 const ebun=(bank,n)=>async()=>{if(!confirm(n+' ontkoppelen? Nieuwe boekingen komen dan niet meer binnen.'))return;await api('POST','/api/bank/unlink',{bank});ebload()};
 $('#ebun').onclick=ebun('rabo','Rabobank');$('#ebuning').onclick=ebun('ing','ING');
+async function fxload(){const r=await api('GET','/api/admin/fx');if(!r.ok)return;$('#fxw').checked=r.j.weer!==false;$('#fxs').checked=r.j.seizoen!==false;$('#fxf').checked=r.j.feest!==false}
+$('#fxsave').onclick=async()=>{const r=await api('PUT','/api/admin/fx',{weer:$('#fxw').checked,seizoen:$('#fxs').checked,feest:$('#fxf').checked});say('#fxmsg',r.ok?'Opgeslagen. Schermen nemen het bij de volgende keer verversen over.':'Mislukt',r.ok?'ok':'err')};
 async function bkload(){const r=await api('GET','/api/admin/status');if(!r.ok)return;const j=r.j,gb=b=>(b/1073741824).toFixed(0)+' GB',dt=t=>new Date(t).toLocaleString('nl-NL',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
 const dagen=j.lastOk?(j.now-j.lastOk)/864e5:null,slecht=dagen===null||dagen>2||(j.backup&&!j.backup.ok);
 $('#bk').textContent=dagen===null?'Nog geen geslaagde back-up geregistreerd. Wacht op de volgende nachtelijke back-up (03:30).':(slecht?'Let op: ':'Alles in orde. ')+'laatste geslaagde back-up '+dt(j.lastOk)+(dagen>2?' (meer dan 2 dagen geleden)':'')+'.';
@@ -353,7 +364,7 @@ $('#acreate').onclick=async()=>{const r=await api('POST','/api/admin/create',{pa
   const c=await api('GET','/api/ha/config');if(c.ok){if(c.j.url)$('#u').value=c.j.url;if(c.j.tokenSet){say('#ts','Token is opgeslagen op de server.');test()}}
   const g0=await api('GET','/api/google/config');if(g0.ok&&g0.j.idSet)say('#gst','Client-ID en geheim zijn opgeslagen op de server.');
   const t=await api('GET','/api/cf/token');if(t.ok&&t.j.set)say('#cs','Tunneltoken is opgeslagen op de server.');
-  gload();bload();ebload();aiload();bellload();bkload();const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
+  gload();bload();ebload();aiload();bellload();bkload();fxload();const i=await api('GET','/api/admin/info');if(i.ok)$('#info').textContent='Node '+i.j.node+' · draait '+i.j.uptimeMin+' min · database '+i.j.dbKB+' KB · accounts: '+i.j.accounts.join(', ');
  }else if(me.j.canCreateAdmin){$('#create').hidden=false;$('#who').textContent='Er is nog geen beheerder ingesteld.'}
  else location.href='/';
 })();

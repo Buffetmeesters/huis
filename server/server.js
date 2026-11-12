@@ -437,6 +437,7 @@ setTimeout(bellTick, 8000); setInterval(bellTick, 3000);
 // Back-upbewaking: melding via Home Assistant (telefoon) als er 2 dagen geen geslaagde back-up is of de laatste fouten had.
 const bkRead = f => { try { return JSON.parse(fs.readFileSync(`${DATA}/status/${f}`, 'utf8')); } catch { return null; } };
 const bkLastOk = () => { try { return Number(fs.readFileSync(`${DATA}/status/backup-ok`, 'utf8')) || null; } catch { return null; } };
+const fxCfg = () => Object.assign({ weer: true, seizoen: true, feest: true }, kvGet('fx') || {});
 const bkn = { at: 0, err: '' };
 async function bkSend(cfg, tekst) {
   const svc = String((kvGet('bkn') || {}).service || '');
@@ -770,9 +771,9 @@ http.createServer(async (req, res) => {
       const s = session(req);
       const names = db.prepare('SELECT name FROM owners ORDER BY name = ?, name').all(ADMIN).map(r => r.name);
       if (!s) return json(res, 401, { owners: names, guests: guestsOn() });
-      if (s.role === 'owner') return json(res, 200, { role: 'owner', guests: guestsOn(), name: s.ref, admin: isAdmin(s), canCreateAdmin: s.ref === 'Joshua' && !q.owner.get(ADMIN) });
+      if (s.role === 'owner') return json(res, 200, { role: 'owner', fx: fxCfg(), guests: guestsOn(), name: s.ref, admin: isAdmin(s), canCreateAdmin: s.ref === 'Joshua' && !q.owner.get(ADMIN) });
       const g = findGuest(s.ref);
-      return json(res, 200, { role: 'guest', id: g.id, name: g.n, away: isAway(req, s), geo: !!geoCfg().on });
+      return json(res, 200, { role: 'guest', fx: fxCfg(), id: g.id, name: g.n, away: isAway(req, s), geo: !!geoCfg().on });
     }
 
     if (p === '/api/setup' && req.method === 'POST') {
@@ -886,6 +887,12 @@ http.createServer(async (req, res) => {
       }
       let vm = null; try { const st = fs.statfsSync(DATA); vm = { free: st.bavail * st.bsize, total: st.blocks * st.bsize }; } catch {}
       return json(res, 200, { now: Date.now(), backup: bkRead('backup.json'), lastOk: bkLastOk(), update: bkRead('update.json'), vm, service: (kvGet('bkn') || {}).service || '', fout: bkn.err });
+    }
+    if (p === '/api/admin/fx') {
+      const s = session(req);
+      if (!s || !isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      if (req.method === 'PUT') { const b = JSON.parse(await body(req)); q.put.run('fx', JSON.stringify({ weer: b.weer !== false, seizoen: b.seizoen !== false, feest: b.feest !== false }), Date.now()); }
+      return json(res, 200, fxCfg());
     }
     if (p === '/api/bell/cfg') {
       const s = session(req);

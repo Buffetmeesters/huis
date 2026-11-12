@@ -423,11 +423,13 @@ function nextDue(t){const d=dt(iso(0));
 function resetDue(){D.tasks.forEach(t=>{if(t.rep&&t.by&&t.next&&t.next<=iso(0)){t.by='';t.next=''}})}
 const repLabel=t=>t.rep==='dag'?'Elke dag':t.rep==='week'?'Elke week op '+DN[t.wd??1]:t.rep==='maand'?'Elke maand op de '+(t.dm||1)+'e':'';
 const WX={0:'Onbewolkt',1:'Overwegend helder',2:'Half bewolkt',3:'Bewolkt',45:'Mist',48:'Mist',51:'Lichte motregen',53:'Motregen',55:'Zware motregen',56:'Ijzel',57:'Ijzel',61:'Lichte regen',63:'Regen',65:'Zware regen',66:'Ijsregen',67:'Ijsregen',71:'Lichte sneeuw',73:'Sneeuw',75:'Zware sneeuw',77:'Sneeuwkorrels',80:'Lichte buien',81:'Buien',82:'Zware buien',85:'Sneeuwbuien',86:'Zware sneeuwbuien',95:'Onweer',96:'Onweer met hagel',99:'Zwaar onweer met hagel'};
-function loadWeather(){if(S.wx!==undefined)return;S.wx=null;
- const done=v=>{S.wx=v;if(S.view==='overzicht'||(S.view==='home'&&!S.rm&&S.fl==null))render()};
+function loadWeather(){if(S.wx!==undefined)return;S.wx=null;fetchWx()}
+function fetchWx(){
+ const done=v=>{const old=S.wx&&S.wx!=='err'?S.wx:null;if(v==='err'&&old)return;const ch=!old||v==='err'||old.current.weather_code!==v.current.weather_code||Math.round(old.current.temperature_2m)!==Math.round(v.current.temperature_2m);S.wx=v;if(ch&&(S.view==='overzicht'||(S.view==='home'&&!S.rm&&S.fl==null)))render()};
  if(typeof fetch!=='function'){S.wx='err';return}
  fetch('https://api.open-meteo.com/v1/forecast?latitude=51.73&longitude=5.53&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FAmsterdam&forecast_days=1')
  .then(r=>r.ok?r.json():Promise.reject()).then(j=>j&&j.current&&j.daily?done(j):done('err')).catch(()=>done('err'))}
+setInterval(()=>{if(S.wx!==undefined&&!document.hidden)fetchWx()},15*60*1000);
 const cc=r=>r.c||(r.c={set:21,air:false});
 const MN={cool:'Koelen',heat:'Verwarmen',fan_only:'Ventileren',auto:'Auto',heat_cool:'Auto',dry:'Drogen'};
 const MF={auto:'Auto',low:'Laag',medium:'Middel',high:'Hoog',quiet:'Stil',mute:'Stil',turbo:'Turbo',strong:'Sterk',middle:'Middel',off:'Uit',on:'Aan'};
@@ -494,15 +496,16 @@ function skyHTML(extra){const now=new Date(),k=phase(now),v=SKY[k],[sr,ss]=sunTi
  return `<div class="sky" style="background:linear-gradient(135deg,${bg[0]},${bg[1]})"><span class="skyw" aria-hidden="true">${fe.ico}</span>${fxCanvas(now,k,fe)}<div class="skyi">${svgI(v[3])}</div><div class="skyb"><div class="skyt" id="skyclock">${hm(now)}</div><div class="skyp">${v[0]}</div><div class="skyg">${now.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'})}</div><div class="skys">Zon op ${hm(sr)} · zon onder ${hm(ss)} · ${nx}</div><div class="skyc"><span class="fest">${fe.ico} ${esc(fe.t)}</span>${extra||''}</div></div></div>`+tijdCard()}
 // Bewegende achtergrond op de bovenste kaart: weer, seizoen en feestdagen. Uit bij "minder beweging".
 const FXN={rain1:24,rain2:44,rain3:76,storm:80,snow1:22,snow2:38,snow3:60,xmas:34,fog:5,stars:28,leaves:9,petals:10,confetti:40,confettiP:34,bats:5,sparkle:20,fireworks:0};
+let FXC={weer:true,seizoen:true,feest:true};
 function fxList(now,k,fe){const L=[],w=S.wx&&S.wx!=='err'&&S.wx.current?S.wx.current:null,c=w?w.weather_code:-1,md=(now.getMonth()+1)*100+now.getDate();
  const rain=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99].includes(c),snow=[71,73,75,77,85,86].includes(c);
- if(rain)L.push(c>=95?'storm':[65,67,82].includes(c)?'rain3':[55,63,66,81].includes(c)?'rain2':'rain1');
+ if(FXC.weer!==false){if(rain)L.push(c>=95?'storm':[65,67,82].includes(c)?'rain3':[55,63,66,81].includes(c)?'rain2':'rain1');
  else if(snow)L.push([75,86].includes(c)?'snow3':[73,85].includes(c)?'snow2':'snow1');
- else if(c===45||c===48)L.push('fog');
- if(!rain&&!snow){if((k==='nacht'||k==='avond')&&c<=2)L.push('stars');
+ else if(c===45||c===48)L.push('fog')}
+ if(!rain&&!snow&&FXC.seizoen!==false){if((k==='nacht'||k==='avond')&&c<=2)L.push('stars');
   if(md>=922&&md<1221)L.push('leaves');else if(md>=320&&md<621)L.push('petals')}
  const n=fe.n,m={Carnaval:'confetti',Koningsdag:'confetti',Pasen:'confettiP',Halloween:'bats',Sinterklaas:'sparkle','Oud en nieuw':'fireworks'};
- if(n==='Kerst'&&fe.dd<=7){if(!snow)L.push('xmas')}else if(m[n]&&fe.dag)L.push(m[n]);
+ if(FXC.feest!==false){if(n==='Kerst'&&fe.dd<=7){if(!snow||FXC.weer===false)L.push('xmas')}else if(m[n]&&fe.dag)L.push(m[n])}
  return L}
 function fxCanvas(now,k,fe){try{if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return '';const L=fxList(now,k,fe);return L.length?`<canvas class="skyfx" data-fx="${L.join(' ')}" aria-hidden="true"></canvas>`:''}catch(e){return ''}}
 const FX={sig:'',p:[],bursts:[],flash:0,nf:0,last:0,t:0};
@@ -1139,7 +1142,7 @@ document.addEventListener('click',async e=>{if(e.target.id==='logout'){try{local
 try{if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js')}catch(e){}
 (async()=>{
 let fromSrv=false,ME=null;
-try{const r=await fetch('/api/me');if(r.status!==200){location.reload();return}ME=await r.json()}catch(e){}
+try{const r=await fetch('/api/me');if(r.status!==200){location.reload();return}ME=await r.json();if(ME&&ME.fx)FXC=ME.fx}catch(e){}
 GUEST=!!ME&&ME.role==='guest';GON=!!(ME&&ME.guests);MEI=ME;
 if(GUEST&&ME.away){awayScreen();return}
 guestUI();
