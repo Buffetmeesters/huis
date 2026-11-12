@@ -21,6 +21,8 @@ Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP
 - Helpers: session(), isAdmin(), OWNERS, kvGet/kvPut, haCfg()/haCall(). Nieuwe routes vóór het blok `/api/state/`.
 - AI-assistent: kv `ai` (sleutel, model, naam, alias, context, web), kv `aimem` (geheugen), tools server-side via de eigen API met de cookie van de gebruiker, bevestigingsknop alleen bij schrijfacties (boodschappen); lampen en omroepen direct.
 - Deurbel: `bellTick` kijkt elke 3 s naar de Hue-deurbelentiteit (automatisch gevonden, Admin, Deurbel), banner op open schermen en omroep via tts.
+- Bovenste kaart (`skyHTML` in index.html): canvas-effecten via `fxList`/`fxLoop` voor weer (regen, onweer, sneeuw, mist), seizoen (bladeren, bloesem, sterren 's nachts) en feestdagen (Kerst, Oud en nieuw, Halloween, Sinterklaas, Koningsdag/Carnaval, Pasen). Uit bij "minder beweging".
+- Back-upbewaking: `backup.sh`/`update.sh` schrijven `data/status/`; route `/api/admin/status`, kaart in Admin, melding via HA (`kv bkn`).
 - Huishoudboekje: kv `boek` met leningen en categorieën, bankkoppeling via Enable Banking (Admin, `/api/bank/...`).
 
 ## Na de verhuizing (1 december)

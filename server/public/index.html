@@ -209,6 +209,7 @@ body{background:radial-gradient(1100px 650px at 88% -8%,rgba(124,92,240,.24),tra
 .gov{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;align-items:stretch}.gov>div>.card{height:calc(100% - 44px)}.gov .govo{grid-column:1/-1}@media(max-width:620px){.gov{grid-template-columns:1fr}}
 .gst{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1fr)}@media(max-width:820px){.gst{grid-template-columns:1fr}}
 .gcol .ftgrid{grid-template-columns:1fr!important}
+.skyfx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;border-radius:inherit}
 .skyw{position:absolute;right:14px;bottom:-14px;font-size:6.5rem;opacity:.28;line-height:1;pointer-events:none;z-index:0;filter:saturate(1.1)}
 .skyc .fest{background:rgba(255,255,255,.22);font-weight:600}
 @media (max-width:420px){.skyt{font-size:2.9rem}.skyi{width:52px;height:52px}.skyi svg{width:28px;height:28px}}
@@ -490,7 +491,53 @@ function skyHTML(extra){const now=new Date(),k=phase(now),v=SKY[k],[sr,ss]=sunTi
  const next=+now<+sr?['Zon op over',sr]:+now<+ss?['Zon onder over',ss]:null,df=next?Math.round((next[1]-now)/6e4):0;
  const nx=next?`${next[0]} ${df>=60?Math.floor(df/60)+' u ':''}${df%60} min`:'De zon is onder';
  const bg=fe.kl&&fe.dag?fe.kl:[v[1],v[2]];
- return `<div class="sky" style="background:linear-gradient(135deg,${bg[0]},${bg[1]})"><span class="skyw" aria-hidden="true">${fe.ico}</span><div class="skyi">${svgI(v[3])}</div><div class="skyb"><div class="skyt" id="skyclock">${hm(now)}</div><div class="skyp">${v[0]}</div><div class="skyg">${now.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'})}</div><div class="skys">Zon op ${hm(sr)} · zon onder ${hm(ss)} · ${nx}</div><div class="skyc"><span class="fest">${fe.ico} ${esc(fe.t)}</span>${extra||''}</div></div></div>`+tijdCard()}
+ return `<div class="sky" style="background:linear-gradient(135deg,${bg[0]},${bg[1]})"><span class="skyw" aria-hidden="true">${fe.ico}</span>${fxCanvas(now,k,fe)}<div class="skyi">${svgI(v[3])}</div><div class="skyb"><div class="skyt" id="skyclock">${hm(now)}</div><div class="skyp">${v[0]}</div><div class="skyg">${now.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long'})}</div><div class="skys">Zon op ${hm(sr)} · zon onder ${hm(ss)} · ${nx}</div><div class="skyc"><span class="fest">${fe.ico} ${esc(fe.t)}</span>${extra||''}</div></div></div>`+tijdCard()}
+// Bewegende achtergrond op de bovenste kaart: weer, seizoen en feestdagen. Uit bij "minder beweging".
+const FXN={rain1:24,rain2:44,rain3:76,storm:80,snow1:22,snow2:38,snow3:60,xmas:34,fog:5,stars:28,leaves:9,petals:10,confetti:40,confettiP:34,bats:5,sparkle:20,fireworks:0};
+function fxList(now,k,fe){const L=[],w=S.wx&&S.wx!=='err'&&S.wx.current?S.wx.current:null,c=w?w.weather_code:-1,md=(now.getMonth()+1)*100+now.getDate();
+ const rain=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99].includes(c),snow=[71,73,75,77,85,86].includes(c);
+ if(rain)L.push(c>=95?'storm':[65,67,82].includes(c)?'rain3':[55,63,66,81].includes(c)?'rain2':'rain1');
+ else if(snow)L.push([75,86].includes(c)?'snow3':[73,85].includes(c)?'snow2':'snow1');
+ else if(c===45||c===48)L.push('fog');
+ if(!rain&&!snow){if((k==='nacht'||k==='avond')&&c<=2)L.push('stars');
+  if(md>=922&&md<1221)L.push('leaves');else if(md>=320&&md<621)L.push('petals')}
+ const n=fe.n,m={Carnaval:'confetti',Koningsdag:'confetti',Pasen:'confettiP',Halloween:'bats',Sinterklaas:'sparkle','Oud en nieuw':'fireworks'};
+ if(n==='Kerst'&&fe.dd<=7){if(!snow)L.push('xmas')}else if(m[n]&&fe.dag)L.push(m[n]);
+ return L}
+function fxCanvas(now,k,fe){try{if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return '';const L=fxList(now,k,fe);return L.length?`<canvas class="skyfx" data-fx="${L.join(' ')}" aria-hidden="true"></canvas>`:''}catch(e){return ''}}
+const FX={sig:'',p:[],bursts:[],flash:0,nf:0,last:0,t:0};
+function fxMake(l,W,H,fresh){const R=Math.random,pk=a=>a[Math.floor(R()*a.length)],p={l,x:R()*W,y:fresh?R()*H:-12,ph:R()*6.28,rot:R()*6.28};
+ if(/^(rain|storm)/.test(l)){p.vy=8+R()*5;p.vx=-1.8;p.len=9+R()*9}
+ else if(/^snow|xmas/.test(l)){p.vy=.5+R()*1;p.r=1.3+R()*2.4}
+ else if(l==='fog'){p.y=H*(.15+R()*.75);p.r=W*(.3+R()*.3);p.vx=.1+R()*.2}
+ else if(l==='stars'){p.y=R()*H*.85;p.r=1+R()*1.6}
+ else if(l==='leaves'){p.vy=.5+R()*.6;p.vx=.3+R()*.3;p.r=5+R()*4;p.col=pk(['#d9822b','#b5521b','#e0b030','#8a3b12'])}
+ else if(l==='petals'){p.vy=.5+R()*.6;p.vx=.3+R()*.3;p.r=4+R()*3;p.col=pk(['#f8bbd0','#ffffff','#f48fb1'])}
+ else if(l==='confetti'||l==='confettiP'){p.vy=.9+R()*1.4;p.r=3+R()*3;p.col=pk(l==='confetti'?['#f44336','#ff9800','#ffeb3b','#4caf50','#2196f3','#e91e63']:['#fff176','#a5d6a7','#f8bbd0','#b3e5fc'])}
+ else if(l==='bats'){p.y=R()*H*.7;p.x=fresh?R()*W:-20;p.vx=.8+R()*1}
+ else if(l==='sparkle'){p.y=R()*H;p.r=2+R()*3;p.col=pk(['#ffd54f','#ffffff','#ff8a80'])}
+ return p}
+function fxBuild(sig,W,H){FX.sig=sig;FX.p=[];FX.bursts=[];sig.split(' ').forEach(l=>{for(let i=0;i<(FXN[l]||0);i++)FX.p.push(fxMake(l,W,H,true))})}
+function fxLoop(ts){const cv=document.querySelector('canvas.skyfx');
+ if(!cv||document.hidden){setTimeout(()=>requestAnimationFrame(fxLoop),700);return}
+ requestAnimationFrame(fxLoop);if(ts-FX.last<33)return;const dt=Math.min(3,(ts-FX.last)/16.7);FX.last=ts;FX.t=ts;
+ const dpr=Math.min(window.devicePixelRatio||1,1.5),W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
+ if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+ const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+ const sig=cv.dataset.fx;if(sig!==FX.sig)fxBuild(sig,W,H);
+ const R=Math.random;
+ for(const p of FX.p){const l=p.l;
+  if(/^(rain|storm)/.test(l)){p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.y>H){p.y=-p.len;p.x=R()*(W+40)}if(p.x<-10)p.x=W;g.strokeStyle='rgba(205,228,255,.5)';g.lineWidth=1;g.beginPath();g.moveTo(p.x,p.y);g.lineTo(p.x+p.vx*1.4,p.y+p.len);g.stroke()}
+  else if(/^snow|xmas/.test(l)){p.ph+=.02*dt;p.x+=Math.sin(p.ph)*.4*dt;p.y+=p.vy*dt;if(p.y>H+4){p.y=-4;p.x=R()*W}g.fillStyle='rgba(255,255,255,.72)';g.beginPath();g.arc(p.x,p.y,p.r,0,6.3);g.fill()}
+  else if(l==='fog'){p.x+=p.vx*dt;if(p.x-p.r>W)p.x=-p.r;const gr=g.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);gr.addColorStop(0,'rgba(255,255,255,.16)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,W,H)}
+  else if(l==='stars'){g.fillStyle='rgba(255,255,255,'+(.25+.65*Math.abs(Math.sin(FX.t/800+p.ph)))+')';g.fillRect(p.x,p.y,p.r,p.r)}
+  else if(l==='leaves'||l==='petals'||l==='confetti'||l==='confettiP'){p.ph+=.03*dt;p.rot+=.04*dt;p.x+=((p.vx||0)+Math.sin(p.ph)*.5)*dt;p.y+=p.vy*dt;if(p.y>H+10){p.y=-10;p.x=R()*W}if(p.x>W+10)p.x=-10;g.save();g.translate(p.x,p.y);g.rotate(p.rot);g.fillStyle=p.col;g.globalAlpha=.8;if(l==='leaves'||l==='petals'){g.beginPath();g.ellipse(0,0,p.r,p.r*.55,0,0,6.3);g.fill()}else g.fillRect(-p.r,-p.r/2,p.r*2,p.r);g.restore()}
+  else if(l==='bats'){p.ph+=.08*dt;p.x+=p.vx*dt;if(p.x>W+20){p.x=-20;p.y=R()*H*.7}g.font='18px sans-serif';g.globalAlpha=.75;g.fillText('\u{1F987}',p.x,p.y+Math.sin(p.ph)*8);g.globalAlpha=1}
+  else if(l==='sparkle'){p.ph+=.05*dt;p.y-=.25*dt;if(p.y<-6){p.y=H+6;p.x=R()*W}const a=.3+.7*Math.abs(Math.sin(p.ph)),r=p.r*(.6+a*.6);g.fillStyle=p.col;g.globalAlpha=a;g.beginPath();g.moveTo(p.x,p.y-r*1.6);g.lineTo(p.x+r*.4,p.y-r*.4);g.lineTo(p.x+r*1.6,p.y);g.lineTo(p.x+r*.4,p.y+r*.4);g.lineTo(p.x,p.y+r*1.6);g.lineTo(p.x-r*.4,p.y+r*.4);g.lineTo(p.x-r*1.6,p.y);g.lineTo(p.x-r*.4,p.y-r*.4);g.closePath();g.fill();g.globalAlpha=1}}
+ if(sig.includes('fireworks')){if(!FX.nb||FX.t>FX.nb){FX.nb=FX.t+700+R()*900;const cx=W*(.15+R()*.7),cy=H*(.15+R()*.45),col='hsl('+Math.floor(R()*360)+',90%,65%)';for(let i=0;i<26;i++){const a=i/26*6.283,v=1.2+R()*1.8;FX.bursts.push({x:cx,y:cy,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,col})}}
+  FX.bursts=FX.bursts.filter(b=>b.life>0);for(const b of FX.bursts){b.x+=b.vx*dt;b.y+=b.vy*dt;b.vy+=.03*dt;b.life-=.016*dt;g.globalAlpha=Math.max(0,b.life);g.fillStyle=b.col;g.fillRect(b.x,b.y,2,2)}g.globalAlpha=1}
+ if(sig.includes('storm')){if(!FX.nf||FX.t>FX.nf){FX.nf=FX.t+4000+R()*6000;FX.flash=.4}if(FX.flash>0){g.fillStyle='rgba(255,255,255,'+FX.flash+')';g.fillRect(0,0,W,H);FX.flash-=.03*dt}}}
+requestAnimationFrame(fxLoop);
 let GL=0;
 async function loadGoogle(force){if(S.role!=='owner'||GL||(!force&&S.g&&Date.now()-S.g.at<180000))return;GL=1;
  try{const r=await fetch('/api/google/status');if(r.status!==200){S.g={at:Date.now(),off:1,st:r.status,connected:[],events:[]};if(S.view==='agenda')render();return}
@@ -522,7 +569,7 @@ function festNow(now){const y=now.getFullYear(),t0=new Date(y,now.getMonth(),now
  const kd=new Date(y,3,27,12);if(kd.getDay()===0)kd.setDate(26);
  const mk=(n,ico,d,voor,na,kl)=>({n,ico,d,voor,na:na||0,kl});
  const L=[mk('Carnaval','🎭',addD(E,-50),0,3,['#c2185b','#f59e0b']),mk('Pasen','🐣',E,7,1,['#7cb342','#fbc02d']),mk('Koningsdag','👑',kd,7,0,['#e65100','#ff9800']),mk('Bevrijdingsdag','🕊️',new Date(y,4,5,12),0,0,null),mk('Hemelvaart','☁️',addD(E,39),0,0,null),mk('Pinksteren','🕊️',addD(E,49),1,1,null),mk('Halloween','🎃',new Date(y,9,31,12),6,0,['#e65100','#4a148c']),mk('Sinterklaas','🎁',new Date(y,11,5,12),20,0,['#c62828','#7b1fa2']),mk('Kerst','🎄',new Date(y,11,25,12),19,1,['#1b5e20','#b71c1c']),mk('Oud en nieuw','🎆',new Date(y,11,31,12),4,1,['#1a237e','#6a1b9a']),mk('Oud en nieuw','🎆',new Date(y-1,11,31,12),0,1,['#1a237e','#6a1b9a']),mk('Valentijn','💝',new Date(y,1,14,12),0,0,null)];
- for(const f of L){const dd=Math.round((f.d-t0)/864e5);if(dd>=-f.na&&dd<=f.voor)return {ico:f.ico,t:dd===0?f.n:dd>0?f.n+' · nog '+dd+(dd===1?' dag':' dagen'):f.n,kl:f.kl,dag:dd===0}}
+ for(const f of L){const dd=Math.round((f.d-t0)/864e5);if(dd>=-f.na&&dd<=f.voor)return {ico:f.ico,t:dd===0?f.n:dd>0?f.n+' · nog '+dd+(dd===1?' dag':' dagen'):f.n,kl:f.kl,dag:dd===0,n:f.n,dd}}
  const md=(now.getMonth()+1)*100+now.getDate();
  return md>=320&&md<621?{ico:'🌷',t:'Lente'}:md>=621&&md<922?{ico:'🌻',t:'Zomer'}:md>=922&&md<1221?{ico:'🍂',t:'Herfst'}:{ico:'❄️',t:'Winter'}}
 
