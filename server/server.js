@@ -853,6 +853,14 @@ http.createServer(async (req, res) => {
       if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen eigenaren' });
       return json(res, 200, { n: bell.n, at: bell.at, now: Date.now() });
     }
+    if (p === '/api/admin/status') {
+      const s = session(req);
+      if (!s || !isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });
+      const rd = f => { try { return JSON.parse(fs.readFileSync(`${DATA}/status/${f}`, 'utf8')); } catch { return null; } };
+      let lastOk = null; try { lastOk = Number(fs.readFileSync(`${DATA}/status/backup-ok`, 'utf8')) || null; } catch {}
+      let vm = null; try { const st = fs.statfsSync(DATA); vm = { free: st.bavail * st.bsize, total: st.blocks * st.bsize }; } catch {}
+      return json(res, 200, { now: Date.now(), backup: rd('backup.json'), lastOk, update: rd('update.json'), vm });
+    }
     if (p === '/api/bell/cfg') {
       const s = session(req);
       if (!s || !isAdmin(s)) return json(res, 403, { error: 'Alleen de beheerder' });

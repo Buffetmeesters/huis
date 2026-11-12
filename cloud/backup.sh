@@ -37,4 +37,9 @@ mkdir -p "$DEST/env"; cp -p "$ROOT"/cloud/immich/.env "$DEST/env/immich.env"; cp
 # Verwijderde/overschreven versies 30 dagen bewaren
 find "$DEST/verwijderd" -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
 rmdir "$DEST/verwijderd/$DAG" 2>/dev/null || true
+# Statusbestand voor de Admin-kaart "Back-up en updates" (data/status/)
+mkdir -p "$ROOT/data/status"
+VRIJ=$(df -Pk /mnt/backup | awk 'NR==2{print $4*1024}'); TOT=$(df -Pk /mnt/backup | awk 'NR==2{print $2*1024}')
+printf '{"at":%s000,"ok":%s,"free":%s,"total":%s}\n' "$(date +%s)" "$([ $FOUT -eq 0 ] && echo true || echo false)" "${VRIJ:-0}" "${TOT:-0}" > "$ROOT/data/status/backup.json"
+[ $FOUT -eq 0 ] && date +%s000 > "$ROOT/data/status/backup-ok"
 if [ $FOUT -eq 0 ]; then echo "=== $(date '+%F %T') klaar ==="; else echo "=== $(date '+%F %T') MET FOUTEN ==="; exit 1; fi
