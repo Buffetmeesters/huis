@@ -42,6 +42,12 @@ Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP
 - Afvalkalender 2027, maandbudget in april, bankkoppeling met de bewindvoerder bespreken, Android-app (PWA), jolofix.nl.
 - Overzichtsdocument: Claude Docs, project Gho4Mx2PdCiSQLTL25q5yu, blok 90e3d975-1a49.
 
+## Android-app in de Play Store (nog te bouwen)
+- Plan: de PWA als Trusted Web Activity verpakken (PWABuilder), als gesloten test of privé-app, niet openbaar. De app opent `huis.huizecpvh.nl`; dashboardwijzigingen komen zonder nieuwe Play Store-versie door (na `git pull` en `docker compose up -d --build`).
+- Server: route `/.well-known/assetlinks.json` toevoegen (anders adresbalk), installatieknop, offline-scherm, snelkoppelingen, melding "Nieuwe versie, tik om te verversen". Sleutel van de app nooit in de chat; Joshua bewaart hem zelf.
+- Jaarlijks: de app opnieuw laten bouwen in PWABuilder met dezelfde sleutel en uploaden, omdat Google een recent target API level eist (meestal deadline rond augustus; controleer de datum in de Play Console). Ontwikkelaarsaccount Google is eenmalig; het jaarbedrag dat Joshua kent is waarschijnlijk Apple.
+- Jaarlijkse herinnering: juli 2027 (daarna elke juli).
+
 ## Afspraken bij wijzigingen
 - Commit-bericht in het Nederlands; eindig met de twee attributieregels (Co-Authored-By en Claude-Session).
 - Test eerst lokaal met een tijdelijke server (`PORT=8099 DATA_DIR=/tmp/xx node --experimental-sqlite server.js`) en een nagebootste Home Assistant, Anthropic en Open-Meteo.
