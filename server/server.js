@@ -1465,6 +1465,7 @@ http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ id: f === null ? '/' : '/?verdieping=' + f, name: f === null ? 'Huis CPvH' : 'Huis – ' + nm[f], short_name: f === null ? 'Huis' : sn[f], start_url: f === null ? '/' : '/?verdieping=' + f, scope: '/', display: 'standalone', orientation: 'any', background_color: '#000000', theme_color: '#1b2748', icons: f === null ? [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }, { src: '/icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] : [{ src: '/icon-f' + f + '-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }, { src: '/icon-f' + f + '-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' }] }));
     }
     if (p === '/privacy') return file(res, 'privacy.html', 'text/html; charset=utf-8');
+    if (p === '/privacy2') return file(res, 'privacy2.html', 'text/html; charset=utf-8');
     if (p === '/admin') {
       const s = session(req);
       if (isAdmin(s) || (s && s.role === 'owner' && s.ref === 'Joshua' && !q.owner.get(ADMIN))) return file(res, 'admin.html', 'text/html; charset=utf-8');

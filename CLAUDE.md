@@ -5,7 +5,7 @@ Communiceert in het Nederlands, wil korte commando's en nette indelingen. Hij vo
 Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP-adressen veranderen.
 
 ## Opbouw
-- Dashboard: `server/server.js` (Node, node:sqlite, kv-tabel) en een bestand per pagina in `server/public/`: `index.html` (client), `admin.html`, `login.html`, `privacy.html`. Docker compose in de root; data in `data/` (niet in git).
+- Dashboard: `server/server.js` (Node, node:sqlite, kv-tabel) en een bestand per pagina in `server/public/`: `index.html` (client), `admin.html`, `login.html`, `privacy.html` (/privacy, het dashboard) en `privacy2.html` (/privacy2, de app SmartHome CPVH met Firebase). Docker compose in de root; data in `data/` (niet in git).
 - Draait op de Ubuntu-VM `docker` (Hyper-V op een Windows Server 2022; VM 500 GB schijf, 8 GB geheugen, 2 processors). Home Assistant draait in een tweede VM.
 - Internet: Cloudflare-tunnel "Huis" (container `cloudflared`, token in `data/cf-token`). `huis.huizecpvh.nl` wijst naar het dashboard. `foto.` en `cloud.` wijzen naar `http://immich-web:2283` en `http://nextcloud-web:80` (containernamen op het netwerk `huis_default`, dus onafhankelijk van IP-adressen).
 - Cloud: map `cloud/` met Immich (foto's) en Nextcloud (bestanden, thema "Huis CPvH", tweestapsverificatie aan), `start.sh`, `backup.sh` (elke nacht 03:30 naar de Windows-schijf P: via /mnt/backup), `update.sh` (zondag 04:30, alleen na geslaagde back-up), `verhuis.sh`, `herstelproef.sh` (test of de back-up echt terug te zetten is, verandert niets aan de echte gegevens). Immich heeft geen tweestapsverificatie; daar zijn lange unieke wachtwoorden de bescherming.
