@@ -305,7 +305,8 @@ recipes:[{n:'Pasta pesto',m:20,i:'250 g pasta\n1 pot pesto\nPijnboompitten\nParm
 const VL=[['overzicht','Overzicht'],['home','Huis'],['agenda','Agenda'],['taken','Taken'],['boodschappen','Boodschappen'],['afval','Afval'],['boek','Huishoudboekje'],['leningen','Leningen'],['assistent','Assistent'],['recepten','Recepten'],['ruimtes','Ruimtes'],['groepen','Groepen en scènes'],['gasten','Familie & Gasten'],['apparaten','Apparaten'],['notities','Notities']];
 const myNotes=()=>{const g=G();return g&&!exp(g)?D.notes.filter(n=>n.to.includes(g.id)):[]};
 const exp=g=>g.until&&g.until<iso(0);
-const GM=()=>{const g=G();if(!g||exp(g))return[];const m=g.mod||{};return[['afval','Afval','afval'],['taken','Taken','taken'],['boodschappen','Boodschappen','shop'],['assistent','Assistent','ai']].filter(x=>m[x[2]])};
+const GM=()=>{const g=G();if(!g||exp(g))return[];const m=g.mod||{};return[['afval','Afval','afval'],['taken','Taken','taken'],['boodschappen','Boodschappen','shop'],['assistent','Assistent','ai']].filter(x=>m[x[2]]||(x[2]==='shop'&&m.shopadd))}
+const gnote=()=>{const g=G();return !!(g&&!exp(g)&&g.mod&&g.mod.note)};const gshopadd=()=>{const g=G();return !!(g&&!exp(g)&&g.mod&&g.mod.shopadd)};;
 const G=()=>S.role==='guest'?D.guests.find(g=>g.id===S.pg)||null:null;
 const PN={licht:'Licht',sfeer:'Sfeer',muziek:'Muziek',klimaat:'Klimaat',film:'Film'};
 const KS=id=>{const r=S.rooms.find(x=>x.id===id);return Object.keys(PN).filter(k=>!r.own&&(k!=='muziek'||r.sp)&&(k!=='klimaat'||r.ce)&&(k!=='film'||id==='woon'))};
@@ -689,10 +690,10 @@ apparaten(){
  return h},
 meer(){return `<h2>Meer</h2><div class="mgrid">${VL.filter(x=>!['overzicht','home','agenda','taken'].includes(x[0])).map(([k,n])=>`<button class="mt" data-view="${k}"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg></span>${n}</button>`).join('')}${ADM&&S.role==='owner'?`<a class="mt" href="/admin" style="text-decoration:none"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg></span>${ADM}</a>`:''}</div>`},
 notities(){
- if(S.role!=='owner'){const L=myNotes();return guestBar()+'<h2>Notities</h2>'+(L.length?L.map(n=>`<div class="card item"><div class="name">${esc(n.t)}</div><div class="state">Van ${esc(n.by)}, ${n.d}</div><p style="white-space:pre-line">${esc(n.x)}</p></div>`).join(''):'<p class="state">Geen notities voor jou.</p>')}
+ if(S.role!=='owner'){const L=myNotes(),g=G(),own=n=>g&&n.gast===g.id;return guestBar()+'<h2>Notities</h2>'+(gnote()?`<div class="card form"><input id="gnt" placeholder="Titel"><textarea id="gnx" rows="3" placeholder="Wat wil je delen met Joshua en Lorenzo?"></textarea><button class="btn" data-act="gnadd">Notitie opslaan</button></div><div style="height:12px"></div>`:'')+(L.length?L.map(n=>`<div class="card item"><div class="name">${esc(n.t)}</div><div class="state">Van ${esc(n.by)}, ${n.d}</div><p style="white-space:pre-line">${esc(n.x)}</p>${own(n)?`<div class="mini"><button class="btn alt" data-act="gndel" data-id="${esc(n.id)}">Verwijder notitie</button></div>`:''}</div>`).join(''):'<p class="state">Geen notities voor jou.</p>')}
  let h=`<h2>Notities</h2><p class="state">Joshua en Lorenzo zien altijd alle notities. Kies zelf wie een notitie verder mag lezen.</p>`;
  const nm=n=>n.to.length?'Zichtbaar voor '+n.to.map(id=>(D.guests.find(g=>g.id===id)||{n:'?'}).n).join(', '):'Alleen Joshua en Lorenzo';
- D.notes.forEach((n,i)=>{h+=`<details class="card item" ${S.on===n.id?'open':''}><summary class="name">${esc(n.t)} <span class="state">${esc(nm(n))}</span></summary><p style="white-space:pre-line">${esc(n.x)}</p><div class="state">Zichtbaar voor</div><div class="chips">${D.guests.map(g=>`<button class="chip" data-act="nvis" data-i="${i}" data-k="${g.id}" aria-pressed="${n.to.includes(g.id)}">${esc(g.n)}</button>`).join('')}</div><div class="mini"><button class="btn alt" data-act="ndel" data-i="${i}">Verwijder notitie</button></div></details>`});
+ D.notes.forEach((n,i)=>{h+=`<details class="card item" ${S.on===n.id?'open':''}><summary class="name">${esc(n.t)} <span class="state">${n.gast?'Van '+esc(n.by)+' · ':''}${esc(nm(n))}</span></summary><p style="white-space:pre-line">${esc(n.x)}</p><div class="state">Zichtbaar voor</div><div class="chips">${D.guests.map(g=>`<button class="chip" data-act="nvis" data-i="${i}" data-k="${g.id}" aria-pressed="${n.to.includes(g.id)}">${esc(g.n)}</button>`).join('')}</div><div class="mini"><button class="btn alt" data-act="ndel" data-i="${i}">Verwijder notitie</button></div></details>`});
  if(!D.notes.length)h+='<p class="state">Nog geen notities.</p>';
  return h+`<h2>Notitie toevoegen</h2><div class="card form"><input id="nt" placeholder="Titel" value="${esc(S.nt||'')}"><textarea id="nx" rows="4" placeholder="Wat wil je delen?">${esc(S.nx||'')}</textarea><div class="state">Zichtbaar voor</div><div class="chips">${D.guests.map(g=>`<button class="chip" data-act="nsel" data-k="${g.id}" aria-pressed="${(S.ns||[]).includes(g.id)}">${esc(g.n)}</button>`).join('')}</div><button class="btn" data-act="nadd">Notitie opslaan</button></div>`},
 gasten(){const gl=(D.guests||[]).filter(g=>!exp(g));
@@ -703,7 +704,7 @@ gasten(){const gl=(D.guests||[]).filter(g=>!exp(g));
  const P=[['licht','Lampen'],['sfeer','Sfeer'],['muziek','Muziek'],['klimaat','Temperatuur en airco'],['film','Film kijken']];
  D.guests.forEach((g,i)=>{h+=`<details class="card item" ${S.og===g.id?'open':''}><summary class="name">${esc(g.n)} <span class="state">${exp(g)?'verlopen':g.until?'tot '+g.until:'geen einddatum'}</span></summary>
 ${FL.map((fn,f)=>`<div class="state" style="margin-top:10px">${fn}</div>`+S.rooms.filter(r=>r.f===f&&!r.own).map(r=>{const p=(g.rp||{})[r.id]||{},ks=KS(r.id);return `<div class="row" style="margin:6px 0;flex-wrap:wrap"><span>${r.name}</span><span class="chips"><button class="chip" data-act="gperm" data-i="${i}" data-r="${r.id}" data-k="*" aria-pressed="${ks.every(k=>p[k])}">Alles</button>${ks.map(k=>`<button class="chip" data-act="gperm" data-i="${i}" data-r="${r.id}" data-k="${k}" aria-pressed="${!!p[k]}">${PN[k]}</button>`).join('')}</span></div>`}).join('')).join('')}
-<div class="state" style="margin-top:10px">Modules</div><div class="chips">${[['afval','Afvalwijzer'],['taken','Takenlijst'],['shop','Boodschappen'],['ai','Assistent']].map(([k,n])=>`<button class="chip" data-act="gmod" data-i="${i}" data-k="${k}" aria-pressed="${!!(g.mod||{})[k]}">${n}</button>`).join('')}</div>
+<div class="state" style="margin-top:10px">Modules</div><div class="chips">${[['afval','Afvalwijzer'],['taken','Takenlijst'],['shop','Boodschappen'],['shopadd','Boodschappen aanvullen'],['note','Notities maken'],['ai','Assistent']].map(([k,n])=>`<button class="chip" data-act="gmod" data-i="${i}" data-k="${k}" aria-pressed="${!!(g.mod||{})[k]}">${n}</button>`).join('')}</div>
 <div class="state" style="margin-top:10px">Toegang buiten het huis</div><div class="chips"><button class="chip" data-act="ganyw" data-i="${i}" aria-pressed="${!!g.anyw}">Altijd toegang, ook buiten het huis</button></div>
 <div class="state" style="margin-top:10px">Mag omroepen</div><div class="chips">${(D.phr||[]).length?D.phr.map(p=>`<button class="chip" data-act="gph" data-i="${i}" data-k="${p.id}" aria-pressed="${(g.ph||[]).includes(p.id)}">${esc(p.t)}</button>`).join(''):'<span class="state">Nog geen zinnen.</span>'}</div>
 <div class="state" style="margin-top:10px">Toegang tot en met</div><div class="mini"><input type="date" value="${g.until}" data-act="guntil" data-i="${i}" aria-label="Einddatum"></div>
@@ -743,8 +744,8 @@ taken(){resetDue();
 ${rp==='week'?`<select id="twd" aria-label="Weekdag">${[1,2,3,4,5,6,0].map(n=>`<option value="${n}">Op ${DN[n]}</option>`).join('')}</select>`:''}
 ${rp==='maand'?`<input id="tdm" type="number" min="1" max="31" value="1" aria-label="Dag van de maand" placeholder="Dag van de maand">`:''}
 <div class="state">${rp?'De taak komt vanzelf terug zodra hij weer aan de beurt is. Punten blijven staan in het scorebord.':'Eenmalige taak.'}</div><button class="btn" data-act="tadd">Toevoegen</button></div><p><button class="btn alt" data-act="tclean">Afgeronde eenmalige taken opruimen</button></p>`},
-boodschappen(){let h=`<h2>Boodschappen</h2>`+(S.role==='owner'?`<div class="card form"><input id="sn" placeholder="Wat moet er gehaald worden?"><button class="btn" data-act="sadd">Toevoegen</button></div><div style="height:12px"></div>`:'');
- D.shop.forEach((s,i)=>{h+=`<div class="card row item ${s.g?'done':''}"><button class="chk" data-act="sgot" data-i="${i}" aria-pressed="${!!s.g}" aria-label="Afvinken ${esc(s.n)}"></button><div class="name grow">${esc(s.n)}</div>${S.role==='owner'?`<button class="btn alt" data-act="sdel" data-i="${i}">Wis</button>`:''}</div>`});
+boodschappen(){let h=`<h2>Boodschappen</h2>`+(S.role==='owner'?`<div class="card form"><input id="sn" placeholder="Wat moet er gehaald worden?"><button class="btn" data-act="sadd">Toevoegen</button></div><div style="height:12px"></div>`:gshopadd()?`<div class="card form"><input id="gsn" placeholder="Wat moet er gehaald worden?"><button class="btn" data-act="gsadd">Toevoegen</button></div><div style="height:12px"></div>`:'');
+ D.shop.forEach((s,i)=>{h+=`<div class="card row item ${s.g?'done':''}"><button class="chk" data-act="sgot" data-i="${i}" aria-pressed="${!!s.g}" aria-label="Afvinken ${esc(s.n)}"></button><div class="name grow">${esc(s.n)}${s.by&&S.role==='owner'?` <span class="state">${esc(s.by)}</span>`:''}</div>${S.role==='owner'?`<button class="btn alt" data-act="sdel" data-i="${i}">Wis</button>`:''}</div>`});
  if(!D.shop.length)h+='<p class="state">De lijst is leeg.</p>';
  return S.role==='owner'?h+`<p><button class="btn alt" data-act="sclear">Afgevinkte verwijderen</button></p>`:h},
 
@@ -832,7 +833,10 @@ ${r.d?`<div class="card" style="margin-top:14px"><div class="name">Omschrijving<
  if(!D.recipes.length)h+='<p class="state">Nog geen recepten.</p>';
  return h+`<div class="ovg" style="align-items:start"><div><h2>Categorieën</h2><div class="card form"><div class="chips">${cats.map((c,k)=>`<span class="chip" style="pointer-events:none">${esc(c)}</span><button class="btn alt" style="padding:6px 10px" data-act="rcdel" data-i="${k}" aria-label="Wis categorie ${esc(c)}">✕</button>`).join('')}</div><input id="rcn" placeholder="Nieuwe categorie, bijv. Ontbijt of Desserts"><button class="btn alt" data-act="rcadd">Categorie toevoegen</button></div></div><div><h2>Recept toevoegen</h2>`+recForm({})+`</div></div>`}};
 async function loadHue(){try{const r=await fetch('/api/ha/scenes');const j=await r.json();S.hsc=r.ok?(j.scenes||[]).filter(x=>!(D.scn||[]).some(c=>c.hue===x.id)):[];S.hmsg=r.ok?(S.hsc.length?'':'Geen nieuwe scènes gevonden.'):(j.error||'Mislukt')}catch(e){S.hmsg='Mislukt'}render()}
-function gdoit(a,t){const g=G();if(!g)return;const i=+t.dataset.i;let b;
+function gdoit(a,t){const g=G();if(!g)return;const i=+t.dataset.i;let b;const gv=id=>(document.getElementById(id)||{value:''}).value.trim();
+ if(a==='gsadd'){const n=gv('gsn').replace(/\s+/g,' ').slice(0,80);if(!n||!gshopadd())return;if(!D.shop.some(x=>!x.g&&x.n.toLowerCase()===n.toLowerCase()))D.shop.push({n,g:0});fetch('/api/guest/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({k:'shopadd',n})}).catch(()=>{});render();return}
+ if(a==='gnadd'){const ti=gv('gnt'),x=gv('gnx');if(!(ti||x)||!gnote())return;const id='n'+Date.now();D.notes.push({id,t:ti||'Notitie',x,to:[g.id],by:g.n,d:iso(0),gast:g.id});fetch('/api/guest/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({k:'noteadd',id,t:ti,x})}).catch(()=>{});render();return}
+ if(a==='gndel'){const id=t.dataset.id,k=D.notes.findIndex(n=>n.id===id&&n.gast===g.id);if(k<0)return;D.notes.splice(k,1);fetch('/api/guest/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({k:'notedel',id})}).catch(()=>{});render();return}
  if(a==='tdone'){const k=D.tasks[i];if(!k||(k.by&&k.by!==g.n))return;b={k:'task',id:k.id,next:k.rep?nextDue(k):''};if(!k.by){k.by=g.n;k.next=b.next}else{k.by='';k.next=''}}
  else if(a==='sgot'){if(!D.shop[i])return;b={k:'shop',i};D.shop[i].g=D.shop[i].g?0:1}
  else{const e=D.afval[i];if(!e||(e.by&&e.by!==g.n))return;b={k:'afval',t:e.t,d:e.d};if(e.by)delete e.by;else e.by=g.n}
@@ -956,10 +960,10 @@ function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL
  if(KIOSK!=null){S.view='home';S.fl=KIOSK}
  const owner=S.role==='owner';
  $('#sub').textContent=owner?'Eigenaarsweergave: alles zichtbaar':'Weergave voor familie en gasten: alleen wat jullie toestaan';
- if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;const gm=GM();S.view=(S.view==='notities'&&myNotes().length)||(gm.some(x=>x[0]===S.view))?S.view:'home'}
+ if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;const gm=GM();S.view=(S.view==='notities'&&(myNotes().length||gnote()))||(gm.some(x=>x[0]===S.view))?S.view:'home'}
  if(!rl().some(x=>x.id===S.room)&&rl()[0])S.room=rl()[0].id;
  try{if(KIOSK==null)sessionStorage.setItem('huis.nav',JSON.stringify({v:S.view,fl:S.fl,rm:S.rm}))}catch(e){}
- const vl=owner?VL:[VL.find(x=>x[0]==='home'),...GM().map(x=>VL.find(v=>v[0]===x[0])),...(myNotes().length?[VL[VL.length-1]]:[])];
+ const vl=owner?VL:[VL.find(x=>x[0]==='home'),...GM().map(x=>VL.find(v=>v[0]===x[0])),...(myNotes().length||gnote()?[VL[VL.length-1]]:[])];
  $('#views').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}">${n}</button>`).join('');
  $('#rail').innerHTML=vl.map(([k,n])=>`<button data-view="${k}" aria-pressed="${S.view===k}" aria-label="${n}" title="${n}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]||IC.home}"/></svg><span>${n}</span></button>`).join('')+(ADM&&S.role==='owner'?`<button type="button" onclick="location.href='/admin'" aria-label="${ADM}" title="${ADM}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg><span>${ADM}</span></button>`:'');
  const nb=owner?['overzicht','home','agenda','taken']:vl.map(x=>x[0]);
@@ -1005,7 +1009,7 @@ document.addEventListener('click',e=>{
  if(t.dataset.room){S.room=t.dataset.room;render();return}
  if(t.dataset.view){S.view=t.dataset.view;if(S.view==='home'){S.fl=null;S.rm=0}render();return}
  const a=t.dataset.act;if(!a)return;
- if(GUEST&&['tdone','sgot','avdone'].includes(a)){gdoit(a,t);return}
+ if(GUEST&&['tdone','sgot','avdone','gsadd','gnadd','gndel'].includes(a)){gdoit(a,t);return}
  if(a==='cmsel'||a==='cfan')return;
  if(!['roomdel','grpdel','scndel'].includes(a))S.cd=null;
  if(act2(a,t)){save();pushClim();render();return}

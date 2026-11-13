@@ -513,7 +513,7 @@ function filterForGuest(d, gid) {
   out.notes = (d.notes || []).filter(n => (n.to || []).includes(gid));
   delete out.gcal; delete out.paid; delete out.log; delete out.recipes; delete out.events; delete out.huur;
   const m = (g && g.mod) || {};
-  out.tasks = m.taken ? (d.tasks || []) : []; out.shop = m.shop ? (d.shop || []) : []; out.afval = m.afval ? (d.afval || []) : [];
+  out.tasks = m.taken ? (d.tasks || []) : []; out.shop = (m.shop || m.shopadd) ? (d.shop || []) : []; out.afval = m.afval ? (d.afval || []) : [];
   out.phr = (d.phr || []).map((p, i) => ({ t: p.t, i, id: p.id })).filter(p => p.id && ((g && g.ph) || []).includes(p.id)); delete out.spf; delete out.spl;
   out.log = []; out.recipes = []; out.events = []; out.paid = {};
   return out;
@@ -859,9 +859,21 @@ http.createServer(async (req, res) => {
         if (!t.by) { t.by = g.n; t.next = t.rep && /^\d{4}-\d\d-\d\d$/.test(b.next || '') ? b.next : ''; d.log = d.log || []; d.log.push({ tid: t.id, w: g.n, p: t.p, d: today, n: t.n }); }
         else if (t.by === g.n) { t.by = ''; t.next = ''; const x = (d.log || []).map(e => e.tid).lastIndexOf(t.id); if (x >= 0) d.log.splice(x, 1); }
         else return json(res, 403, { error: 'Alleen jezelf terugzetten' });
-      } else if (b.k === 'shop' && m.shop) {
+      } else if (b.k === 'shop' && (m.shop || m.shopadd)) {
         const it = (d.shop || [])[b.i]; if (!it) return json(res, 404, { error: 'Niet gevonden' });
         it.g = it.g ? 0 : 1;
+      } else if (b.k === 'shopadd' && m.shopadd) {
+        const n = String(b.n || '').replace(/\s+/g, ' ').trim().slice(0, 80); if (!n) return json(res, 400, { error: 'Leeg' });
+        d.shop = d.shop || []; if (d.shop.length >= 200) return json(res, 400, { error: 'De lijst is vol' });
+        if (!d.shop.some(x => !x.g && String(x.n).toLowerCase() === n.toLowerCase())) d.shop.push({ n, g: 0, by: g.n });
+      } else if (b.k === 'noteadd' && m.note) {
+        const t = String(b.t || '').trim().slice(0, 80) || 'Notitie', x = String(b.x || '').trim().slice(0, 2000); if (!x && !String(b.t || '').trim()) return json(res, 400, { error: 'Leeg' });
+        d.notes = d.notes || []; if (d.notes.filter(n => n.gast === g.id).length >= 30) return json(res, 400, { error: 'Te veel notities. Verwijder er eerst een paar.' });
+        const id = /^n\d{6,15}$/.test(String(b.id || '')) && !d.notes.some(n => n.id === b.id) ? b.id : 'n' + Date.now();
+        d.notes.push({ id, t, x, to: [g.id], by: g.n, d: today, gast: g.id });
+      } else if (b.k === 'notedel' && m.note) {
+        const i = (d.notes || []).findIndex(n => n.id === b.id && n.gast === g.id); if (i < 0) return json(res, 404, { error: 'Niet gevonden' });
+        d.notes.splice(i, 1);
       } else if (b.k === 'afval' && m.afval) {
         const e = (d.afval || []).find(x => x.t === b.t && x.d === b.d); if (!e) return json(res, 404, { error: 'Niet gevonden' });
         if (!e.by) e.by = g.n; else if (e.by === g.n) delete e.by; else return json(res, 403, { error: 'Alleen jezelf terugzetten' });
