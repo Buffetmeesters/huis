@@ -401,7 +401,7 @@ function turnOnData(entity, b) {
 function haErr(e) { return /^Home Assistant antwoordde/.test(e.message) ? e.message : 'Geen verbinding met Home Assistant: ' + (e.cause && e.cause.code || e.message); }
 function haCfg() { const r = q.get.get('ha'); const c = r ? JSON.parse(r.v) : null; return c && c.url && c.token ? c : null; }
 // Deurbel: kijkt in HomeAssistant of de deurbel is ingedrukt (event- of binary_sensor-entiteit)
-const bell = { n: 0, at: 0, ent: '', last: null, err: '' };
+const bell = { n: 0, at: 0, ent: '', last: null, seen: undefined, err: '', log: (() => { try { const r = q.get.get('bellog'); return r ? JSON.parse(r.v) : []; } catch { return []; } })() };
 function bellCfg() { const r = q.get.get('bell'); try { return r ? JSON.parse(r.v) : {}; } catch { return {}; } }
 let bellSaid = 0;
 async function bellSay(cfg) {
@@ -426,11 +426,23 @@ async function bellTick() {
       if (!ent) { bell.ent = ''; bell.err = 'Geen deurbel gevonden in Home Assistant'; return; }
     }
     const st = await haCall(cfg, '/api/states/' + encodeURIComponent(ent));
-    bell.err = ''; if (bell.ent !== ent) { bell.ent = ent; bell.last = null; }
-    const v = String(st.state);
-    if (v === 'unavailable' || v === 'unknown') return;
-    if (bell.last !== null && v !== bell.last && (ent.startsWith('event.') || v === 'on')) { bell.n++; bell.at = Date.now(); bellSay(cfg).catch(() => {}); }
-    bell.last = v;
+    bell.err = ''; if (bell.ent !== ent) { bell.ent = ent; bell.last = null; bell.seen = undefined; }
+    const v = String(st.state), prev = bell.seen;
+    if (v !== prev) {
+      bell.seen = v;
+      const ty = st.attributes && st.attributes.event_type ? String(st.attributes.event_type) : '';
+      const bad = v === 'unavailable' || v === 'unknown';
+      let ring = false, why = bad ? 'niet beschikbaar' : '';
+      if (!bad && bell.last !== null && v !== bell.last && (ent.startsWith('event.') || v === 'on')) {
+        // een event-entiteit toont het tijdstip van de laatste gebeurtenis: een oud tijdstip is een herstelde status, geen aanbellen
+        const t = Date.parse(v);
+        if (ent.startsWith('event.') && !isNaN(t) && Math.abs(Date.now() - t) > 5 * 60000) why = 'genegeerd: oud tijdstip';
+        else { ring = true; why = 'aangebeld'; }
+      }
+      if (ring || prev !== undefined) { bell.log.unshift({ t: Date.now(), v: v.slice(0, 40), ty, w: why || 'status gewijzigd' }); bell.log.length = Math.min(bell.log.length, 40); try { q.put.run('bellog', JSON.stringify(bell.log), Date.now()); } catch {} }
+      if (ring) { bell.n++; bell.at = Date.now(); bellSay(cfg).catch(() => {}); }
+    }
+    if (v !== 'unavailable' && v !== 'unknown') bell.last = v;
   } catch (e) { bell.err = haErr(e); }
 }
 setTimeout(bellTick, 8000); setInterval(bellTick, 3000);
@@ -915,7 +927,7 @@ http.createServer(async (req, res) => {
         q.put.run('bell', JSON.stringify({ entity: e, say: b.say !== false }), Date.now()); bell.ent = ''; bell.last = null; bellTick().catch(() => {});
         return json(res, 200, { ok: true });
       }
-      return json(res, 200, { say: bellCfg().say !== false, entity: bellCfg().entity || '', gebruikt: bell.ent, fout: bell.err, aantal: bell.n });
+      return json(res, 200, { say: bellCfg().say !== false, entity: bellCfg().entity || '', gebruikt: bell.ent, fout: bell.err, aantal: bell.n, log: bell.log.slice(0, 15) });
     }
     if (p.startsWith('/api/assistant/')) {
       const s = session(req);
