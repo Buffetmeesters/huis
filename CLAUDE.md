@@ -34,9 +34,27 @@ Verhuizing naar Frans Staelstraat 29, 5281 CW Boxtel op 1 december 2026: alle IP
    Airco's: een ruimte onthoudt zijn airco (`room.ce`, entiteit in Home Assistant) en blijft zonder temperatuur staan als die verdwijnt. Zet oude ruimtes op "Niet gekoppeld" (Ruimtes, Airco in Home Assistant), verwijder de oude apparaten in Home Assistant, en koppel de nieuwe airco's in dezelfde keuzelijst (`HAC`); niet-gekoppelde staan ook in het klimaatoverzicht. Ander merk betekent andere entiteitnamen, dus alles opnieuw koppelen.
 5. `huis.`, `foto.` en `cloud.huizecpvh.nl` werken zonder wijziging (tunnel). Controleer de volgende ochtend de back-up: `tail -n 3 /var/log/huis-backup.log`.
 
-## Voor donderdag 12 november (Joshua is vrij)
-1. Eerst: back-up van vannacht controleren (`tail -n 3 /var/log/huis-backup.log`) en `sudo ~/huis/cloud/herstelproef.sh` nog eens draaien (Immich heeft dan zijn databasekopie).
-2. Daarna kiezen: (a) bewaking van de back-up in het dashboard (Admin-kaart met laatste back-up/update/schijfruimte; backup.sh schrijft dan een statusbestand naar `data/`, melding bij twee dagen zonder geslaagde back-up); (b) Fixie: timers/herinneringen, goedemorgen-overzicht op de tablet, agenda-afspraken maken met bevestigingsknop; (c) Huishoudboekje: jaaroverzicht per categorie met export inclusief bonnetjes, melding bij overschrijding maandbudget; (d) aanbellijst met tijdstippen en Fixie die kan antwoorden wie er aanbelde.
+## Stand zaterdag 14 november 2026 (Joshua neemt een paar dagen rust)
+Klaar en op de server (alles gepusht, laatste commit e6a6e00; Joshua voert `git pull` en `docker compose up -d --build` zelf uit, controleer of hij de laatste versie heeft):
+- Back-upbewaking: Admin, Server, kaart "Back-up en updates" (laatste back-up, schijfruimte, update); melding in Home Assistant en op zijn telefoon (`notify.mobile_app_sm_s931b`, getest). De back-up van 12 november en de herstelproef zijn geslaagd.
+- Bewegende achtergrond op de bovenste kaart (weer, seizoen, feestdagen), per groep aan/uit in Admin; weer ververst elke 15 minuten.
+- Gasten: "Alleen thuis" getest en werkt (het vinkje "Alleen thuis aan" moest aan; Dennis en gasten met "Altijd toegang" zijn uitgezonderd). Nieuw: per gast "Boodschappen aanvullen" en "Notities maken" (Familie & Gasten); Joshua moet die bij Dennis nog aanzetten en testen.
+- Deurbel: oude tijdstippen na herstel tellen niet meer als aanbellen; logboek in Admin, Deurbel. Aanleiding: in de nacht van 13 op 14 november rond 04:00 gingen lampen aan en kwam een omroep "iemand aan de voordeur", terwijl de Hue Bridge even offline was. Oorzaak niet bewezen (bridge-herstart, update of Hue-routine).
+- `/privacy` (dashboard) en `/privacy2` (app SmartHome CPVH, Firebase) staan online.
+- Discord-bot Lowlands RP (apart project, Windows Server, geplande taak "Lowlands bot", poort 3030) draait weer. Niet aanraken zonder opdracht.
+
+Eerst doen bij hervatten:
+1. Vragen of Joshua `git pull` en bouwen heeft gedaan, en of Dennis' nieuwe modules werken.
+2. Vragen naar het Home Assistant-logboek rond 04:00 op 14 november (wat zette de lampen aan?) en of de Hue Bridge een vast IP in de router heeft (nog niet bevestigd; hoort bij de IP-reserveringen, ook de Sync Box 192.168.178.89).
+3. Controleren: `tail -n 3 /var/log/huis-backup.log` en de Admin-kaart Back-up en updates; zondag 04:30 draait de eerste automatische update (`/var/log/huis-update.log`).
+
+Gepland, in deze volgorde (Joshua wilde dit weekend beginnen):
+- Tuya en Tado koppelen: Tuya via Home Assistant (Instellingen, Apparaten en diensten, Tuya, gebruikerscode uit de Smart Life- of Tuya Smart-app, QR scannen; of het ook met de LSC Smart Connect-app werkt is niet bevestigd). Tado: pas zichtbaar zodra er een Tado-apparaat is (cv-ketel/slimme radiatorknoppen komen in het nieuwe huis; merk en type ketel nodig). Gebruikerscodes en wachtwoorden nooit in de chat.
+- Energie-overzicht: kaart met verbruik per dag, totaal van de maand en verwachte kosten van de maand, plus besparingstips en Fixie-vragen ("wat kostte gisteren?"), alleen Joshua en Lorenzo. Eerst nodig: waar komt het verbruik vandaan (slimme meter met P1-lezer, bijvoorbeeld HomeWizard, of stekkers met meting), de tarieven (kWh, gas, vaste kosten, terugleveren; die vult Joshua in Admin in) en welke Tuya-apparaten er zijn.
+- Android-app in de Play Store (zie hieronder) en daarvoor eerst het installatiegedeelte (assetlinks.json, installatieknop, offline-scherm, snelkoppelingen, melding "nieuwe versie").
+- Overige ideeën uit het plan: Fixie-timers en herinneringen, goedemorgen-overzicht op de tablet, agenda-afspraken maken met bevestigingsknop, Huishoudboekje jaaroverzicht per categorie met export en budgetmelding, aanbellijst met "wie belde aan" door Fixie.
+
+Praktische dingen: Joshua zit op zijn weeklimiet van Claude (te zien op claude.ai/settings/usage); houd grote taken klein. Tablets openen `https://huis.huizecpvh.nl/?verdieping=0` (1 = 1e verdieping, 2 = zolder).
 
 ## Nog open (zie ook het Claude Doc "Huis-platform: wat staat er nog open")
 - Tapo-camera's (controleer eerst RTSP/ONVIF), live beeld van de Hue-deurbel.
