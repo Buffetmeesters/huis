@@ -56,6 +56,9 @@ Gepland, in deze volgorde (Joshua wilde dit weekend beginnen):
 
 Praktische dingen: Joshua zit op zijn weeklimiet van Claude (te zien op claude.ai/settings/usage); houd grote taken klein. Tablets openen `https://huis.huizecpvh.nl/?verdieping=0` (1 = 1e verdieping, 2 = zolder).
 
+## Nieuw idee (15 november): eigen domeinen zelf hosten
+Joshua wil al zijn eigen domeinen uit de hostingpakketten halen en zelf hosten (geen reseller, geen klanten). Advies gegeven: aparte Ubuntu-VM in Hyper-V (los van de VM met dashboard, Nextcloud, Immich en back-ups), gratis paneel HestiaCP of Docker met Caddy, bereikbaar via de bestaande Cloudflare-tunnel (domeinen naar Cloudflare-DNS), dezelfde nachtelijke back-up naar P:, e-mail niet zelf hosten. DirectAdmin is betaald (Personal Plus 5 dollar per maand, 2 accounts); niet nodig. Nog nodig van Joshua: aantal domeinen, wat erop staat (WordPress/statisch), huidige hosting, e-mail op die domeinen, registrar. Liever na 1 december of eerst met één testdomein; niets op de huisserver zetten zonder opdracht.
+
 ## Nog open (zie ook het Claude Doc "Huis-platform: wat staat er nog open")
 - Tapo-camera's (controleer eerst RTSP/ONVIF), live beeld van de Hue-deurbel.
 - Airco's door Fixie laten bedienen na installatie; cv-ketel Tado/slim thermostaat (merk en type nodig).
