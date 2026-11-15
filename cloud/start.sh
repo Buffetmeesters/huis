@@ -26,6 +26,5 @@ ENV
   echo
 fi
 
-(cd immich && docker compose up -d)
 (cd nextcloud && docker compose up -d)
 docker ps --format 'table {{.Names}}\t{{.Status}}'

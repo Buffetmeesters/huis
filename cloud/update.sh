@@ -10,7 +10,7 @@ if ! grep -q "^=== $(date +%F) .* klaar ===" /var/log/huis-backup.log 2>/dev/nul
   echo "Overgeslagen: er is vandaag geen geslaagde back-up."
   mkdir -p "$ROOT/../data/status"; printf '{"at":%s000,"ok":false,"skipped":true}\n' "$(date +%s)" > "$ROOT/../data/status/update.json"; exit 0
 fi
-for d in immich nextcloud; do
+for d in nextcloud; do
   echo "-- $d"
   (cd "$ROOT/$d" && docker compose pull -q && docker compose up -d) || echo "FOUT bij $d"
 done
