@@ -75,3 +75,6 @@ Joshua wil al zijn eigen domeinen uit de hostingpakketten halen en zelf hosten (
 ## Afspraken bij wijzigingen
 - Commit-bericht in het Nederlands; eindig met de twee attributieregels (Co-Authored-By en Claude-Session).
 - Test eerst lokaal met een tijdelijke server (`PORT=8099 DATA_DIR=/tmp/xx node --experimental-sqlite server.js`) en een nagebootste Home Assistant, Anthropic en Open-Meteo.
+
+## Jolofix-beheer (21 november)
+- Pagina `/jolofix` (`server/public/jolofix.html`) alleen voor Joshua en Lorenzo (eigenaren, niet Admin-account, niet gasten): knoppen naar alle beheerpagina's van Jolo Fix en live status (route `/api/jolofix/status`, lijst `JF_CHECK` in server.js, cache 60 s). Knop "Jolo Fix" in de kop van het dashboard.

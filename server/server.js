@@ -9,6 +9,9 @@ const { DatabaseSync } = require('node:sqlite');
 const PORT = process.env.PORT || 8080;
 const DATA = process.env.DATA_DIR || '/data';
 const OWNERS = ['Joshua', 'Lorenzo'];
+// Jolofix-beheer (/jolofix): adressen waarvan de status live wordt getoond
+const JF_CHECK = ['https://www.jolofix.nl/', 'https://hosting.jolofix.nl/', 'https://mijn.jolofix.nl/', 'https://huren.jolofix.nl/huren.php', 'https://klusbon.jolofix.nl/index.php?p=login', 'https://koelwacht.jolofix.nl/index.php?p=login', 'https://boekmoment.jolofix.nl/boek.php', 'https://radio.jolofix.nl/', 'https://cloud.jolofix.nl/status.php', 'https://games.jolofix.nl/auth/login', 'https://webmail.jolofix.nl/', 'https://paneel.jolofix.nl/login/', 'https://status.jolofix.nl/status/jolofix', 'https://boekhouding.huizecpvh.nl/'];
+let jfCache = null;
 const ADMIN = 'Admin';
 const isAdmin = s => !!s && s.role === 'owner' && s.ref === ADMIN;
 const SESSION_DAYS_OWNER = 365, SESSION_DAYS_GUEST = 7;
@@ -669,6 +672,15 @@ http.createServer(async (req, res) => {
       }
       if (p === '/api/bank/unlink' && req.method === 'POST') { const ub = JSON.parse((await body(req)) || '{}').bank; c.sessions = c.sessions.filter(x => x.bank !== ub); bankPut(c); return json(res, 200, { ok: true }); }
       return json(res, 404, { error: 'Onbekend' });
+    }
+    if (p === '/api/jolofix/status') {
+      // Jolofix-beheer: live status van de websites en systemen (alleen Joshua en Lorenzo).
+      const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      if (jfCache && Date.now() - jfCache.t < 60e3) return json(res, 200, jfCache.d);
+      const chk = async u => { const t0 = Date.now(); try { const r = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(8000), headers: { 'user-agent': 'Huis-Jolofix-beheer/1.0' } }); return { u, ok: r.status < 500, code: r.status, ms: Date.now() - t0 }; } catch (e) { return { u, ok: false, code: 0, ms: Date.now() - t0 }; } };
+      const d = { t: Date.now(), r: await Promise.all(JF_CHECK.map(chk)) };
+      jfCache = { t: Date.now(), d };
+      return json(res, 200, d);
     }
     if (p.startsWith('/api/boek')) {
       // Huishoudboekje: alleen Joshua en Lorenzo (niet Admin, niet gasten).
@@ -1490,6 +1502,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/privacy') return file(res, 'privacy.html', 'text/html; charset=utf-8');
     if (p === '/privacy2') return file(res, 'privacy2.html', 'text/html; charset=utf-8');
+    if (p === '/jolofix') { const s = session(req); if (s && s.role === 'owner' && OWNERS.includes(s.ref)) return file(res, 'jolofix.html', 'text/html; charset=utf-8'); }
     if (p === '/admin') {
       const s = session(req);
       if (isAdmin(s) || (s && s.role === 'owner' && s.ref === 'Joshua' && !q.owner.get(ADMIN))) return file(res, 'admin.html', 'text/html; charset=utf-8');

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#134e78">
+<title>Jolofix-beheer</title>
+<style>
+:root{--bg:#f3f6f9;--kaart:#fff;--ink:#0c2238;--mute:#5d6f80;--lijn:#d5dee7;--blauw:#134e78;--geel:#f2b531;--ok:#1a7f4b;--fout:#b42318;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1520;--kaart:#122233;--ink:#e8eef4;--mute:#9fb0c0;--lijn:#24384c;--blauw:#559acc}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#134e78;color:#fff;padding:18px 20px;border-bottom:4px solid var(--geel)}
+header .b{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header h1{margin:0;font-size:1.4rem}header a{color:#fff}
+.terug{margin-left:auto;font-size:.9rem}
+main{max-width:1100px;margin:0 auto;padding:20px}
+h2{font-size:1.05rem;margin:26px 0 10px;color:var(--blauw)}
+.rooster{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+a.t{display:block;background:var(--kaart);border:1px solid var(--lijn);border-radius:12px;padding:12px 14px;color:var(--ink);text-decoration:none}
+a.t:hover,a.t:focus-visible{border-color:var(--blauw);outline:none;box-shadow:0 0 0 3px rgba(19,78,120,.15)}
+a.t strong{display:flex;align-items:center;gap:8px}a.t span{display:block;color:var(--mute);font-size:.85rem;margin-top:2px}
+.st{width:10px;height:10px;border-radius:50%;background:var(--lijn);flex:none}.st.ok{background:var(--ok)}.st.fout{background:var(--fout)}
+.balk{background:var(--kaart);border:1px solid var(--lijn);border-radius:12px;padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.balk b{font-size:1rem}.m{color:var(--mute);font-size:.85rem}
+</style>
+</head>
+<body>
+<header><div class="b"><h1>Jolofix-beheer</h1><span class="m" style="color:#cfe0ee">Alles van Jolo Fix op één plek</span><a class="terug" href="/">Terug naar Huis</a></div></header>
+<main>
+<div class="balk" id="samen"><span class="st" id="samenst"></span><b id="samentxt">Status ophalen…</b><span class="m" id="samentijd"></span></div>
+
+<h2>Dagelijks werk</h2>
+<div class="rooster">
+ <a class="t" href="https://mijn.jolofix.nl/index.php" target="_blank" rel="noopener"><strong><i class="st" data-u="https://mijn.jolofix.nl/"></i>Helpdesk en klanten</strong><span>Tickets, klanten, pakketten, bestellingen, Help mij</span></a>
+ <a class="t" href="https://huren.jolofix.nl/index.php" target="_blank" rel="noopener"><strong><i class="st" data-u="https://huren.jolofix.nl/huren.php"></i>Verhuur</strong><span>Reserveringen, uitgifte en retour</span></a>
+ <a class="t" href="https://boekhouding.huizecpvh.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://boekhouding.huizecpvh.nl/"></i>Boekhouding</strong><span>Invoice Ninja: offertes, facturen, betalingen</span></a>
+ <a class="t" href="https://webmail.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://webmail.jolofix.nl/"></i>Webmail</strong><span>info@jolofix.nl</span></a>
+ <a class="t" href="https://www.jolofix.nl/beheer/" target="_blank" rel="noopener"><strong><i class="st" data-u="https://www.jolofix.nl/"></i>Website bewerken</strong><span>Teksten en foto's op jolofix.nl</span></a>
+ <a class="t" href="https://klusbon.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://klusbon.jolofix.nl/index.php?p=login"></i>Klusbon</strong><span>Werkbonnen en planning (demo)</span></a>
+ <a class="t" href="https://boekmoment.jolofix.nl/index.php" target="_blank" rel="noopener"><strong><i class="st" data-u="https://boekmoment.jolofix.nl/boek.php"></i>Boekmoment</strong><span>Afspraken (demo)</span></a>
+ <a class="t" href="https://koelwacht.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://koelwacht.jolofix.nl/index.php?p=login"></i>Koelwacht</strong><span>HACCP (demo)</span></a>
+</div>
+
+<h2>Diensten voor klanten</h2>
+<div class="rooster">
+ <a class="t" href="https://hosting.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://hosting.jolofix.nl/"></i>Verkoopsite</strong><span>hosting.jolofix.nl</span></a>
+ <a class="t" href="https://paneel.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://paneel.jolofix.nl/login/"></i>Hostingpaneel</strong><span>HestiaCP op de VPS</span></a>
+ <a class="t" href="https://cloud.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://cloud.jolofix.nl/status.php"></i>Cloudopslag</strong><span>Nextcloud (beheerder jfbeheer)</span></a>
+ <a class="t" href="https://games.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://games.jolofix.nl/auth/login"></i>Gameservers</strong><span>Pterodactyl-paneel</span></a>
+ <a class="t" href="https://radio.jolofix.nl" target="_blank" rel="noopener"><strong><i class="st" data-u="https://radio.jolofix.nl/"></i>Radio</strong><span>Streams en radiostudio</span></a>
+ <a class="t" href="https://status.jolofix.nl/dashboard" target="_blank" rel="noopener"><strong><i class="st" data-u="https://status.jolofix.nl/status/jolofix"></i>Statuspagina</strong><span>Uptime Kuma, onderhoud aankondigen</span></a>
+</div>
+
+<h2>Servers en accounts</h2>
+<div class="rooster">
+ <a class="t" href="https://paneel.huizecpvh.nl" target="_blank" rel="noopener"><strong>Hostingpaneel thuis</strong><span>lowlandsrp.com, ddt-urbex.nl</span></a>
+ <a class="t" href="https://my.mollie.com" target="_blank" rel="noopener"><strong>Mollie</strong><span>Betalingen en incasso</span></a>
+ <a class="t" href="https://cp.openprovider.eu" target="_blank" rel="noopener"><strong>Openprovider</strong><span>Domeinnamen</span></a>
+ <a class="t" href="https://dash.cloudflare.com" target="_blank" rel="noopener"><strong>Cloudflare</strong><span>DNS, tunnels en inlogbeveiliging</span></a>
+ <a class="t" href="https://secure.leaseweb.com" target="_blank" rel="noopener"><strong>Leaseweb</strong><span>De VPS</span></a>
+ <a class="t" href="https://login.tailscale.com/admin/machines" target="_blank" rel="noopener"><strong>Tailscale</strong><span>Beveiligd netwerk naar de servers</span></a>
+</div>
+<p class="m" style="margin-top:24px">Groen = bereikbaar, rood = niet bereikbaar (elke minuut opnieuw gecontroleerd door de huis-server).</p>
+</main>
+<script>
+async function laad(){
+  try{
+    const r=await fetch('/api/jolofix/status');if(!r.ok)throw 0;const d=await r.json();
+    const m=new Map(d.r.map(x=>[x.u,x]));let fout=0;
+    document.querySelectorAll('i.st[data-u]').forEach(el=>{const x=m.get(el.dataset.u);if(!x)return;el.className='st '+(x.ok?'ok':'fout');el.title=x.ok?('Bereikbaar ('+x.ms+' ms)'):'Niet bereikbaar';if(!x.ok)fout++});
+    document.getElementById('samenst').className='st '+(fout?'fout':'ok');
+    document.getElementById('samentxt').textContent=fout?(fout===1?'1 onderdeel niet bereikbaar':fout+' onderdelen niet bereikbaar'):'Alles bereikbaar';
+    document.getElementById('samentijd').textContent='Gecontroleerd om '+new Date(d.t).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){document.getElementById('samentxt').textContent='Status kon niet worden opgehaald'}
+}
+laad();setInterval(laad,60000);
+</script>
+</body>
+</html>
