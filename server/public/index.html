@@ -232,6 +232,7 @@ body.kiosk .btn,body.kiosk .chip{padding:14px 20px;font-size:1.05rem}
 body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
 .alloff{display:flex;gap:12px;margin:18px 0 4px;flex-wrap:wrap}
 .camc .camb{display:block;width:100%;padding:0;margin-top:8px;border:0;background:#0003;border-radius:12px;overflow:hidden;cursor:pointer}.camc img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;transition:opacity .3s}#camov{position:fixed;inset:0;z-index:999;background:#000e;display:flex;flex-direction:column;padding:12px;gap:10px}#camov img{flex:1;min-height:0;width:100%;object-fit:contain}.camov-k{display:flex;align-items:center;gap:12px;color:#fff}.camov-k strong{flex:1}
+.camwall{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}.camtile{position:relative;padding:0;overflow:hidden;cursor:pointer;background:#000;border:0}.camtile img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000}.camtile:fullscreen img{height:100%;aspect-ratio:auto}.camlbl{position:absolute;left:10px;bottom:8px;padding:4px 10px;border-radius:999px;background:#000a;color:#fff;font-size:.85rem}.camtile.camgroot{position:fixed;inset:0;z-index:998;border-radius:0}.camtile.camgroot img{height:100%;aspect-ratio:auto}
 </style>
 </head>
 <body>
@@ -304,7 +305,7 @@ events:[{d:iso(1),t:'18:30',n:'Samen eten',w:'Lorenzo'},{d:iso(2),t:'09:00',n:'D
 tasks:[{n:'Jolo uitlaten',p:2,by:'',rep:'dag'},{n:'Coco en Mango voeren en water verversen',p:1,by:'',rep:'dag'},{n:'Vogelkooi schoonmaken',p:3,by:'',rep:'week',wd:6},{n:'Vaatwasser uitruimen',p:1,by:'',rep:'dag'},{n:'Was draaien en ophangen',p:2,by:'',rep:'week',wd:3},{n:'Badkamer schoonmaken',p:5,by:'',rep:'week',wd:0}],
 shop:[{n:'Melk',g:0},{n:'Brood',g:0},{n:'Tomaten',g:1}],
 recipes:[{n:'Pasta pesto',m:20,i:'250 g pasta\n1 pot pesto\nPijnboompitten\nParmezaan',s:'Kook de pasta. Meng met de pesto. Bestrooi met pijnboompitten en parmezaan.'}]};
-const VL=[['overzicht','Overzicht'],['home','Huis'],['agenda','Agenda'],['taken','Taken'],['boodschappen','Boodschappen'],['afval','Afval'],['boek','Huishoudboekje'],['leningen','Leningen'],['assistent','Assistent'],['recepten','Recepten'],['ruimtes','Ruimtes'],['groepen','Groepen en scènes'],['gasten','Familie & Gasten'],['apparaten','Apparaten'],['notities','Notities']];
+const VL=[['overzicht','Overzicht'],['home','Huis'],['cameras','Camera’s'],['agenda','Agenda'],['taken','Taken'],['boodschappen','Boodschappen'],['afval','Afval'],['boek','Huishoudboekje'],['leningen','Leningen'],['assistent','Assistent'],['recepten','Recepten'],['ruimtes','Ruimtes'],['groepen','Groepen en scènes'],['gasten','Familie & Gasten'],['apparaten','Apparaten'],['notities','Notities']];
 const myNotes=()=>{const g=G();return g&&!exp(g)?D.notes.filter(n=>n.to.includes(g.id)):[]};
 const exp=g=>g.until&&g.until<iso(0);
 const GM=()=>{const g=G();if(!g||exp(g))return[];const m=g.mod||{};return[['afval','Afval','afval'],['taken','Taken','taken'],['boodschappen','Boodschappen','shop'],['assistent','Assistent','ai']].filter(x=>m[x[2]]||(x[2]==='shop'&&m.shopadd))}
@@ -319,6 +320,18 @@ const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
 const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><button class="chip" data-act="toowner">‹ Terug naar eigenaar</button><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let CAMW={el:null,key:'',wake:null,t:[]};
+function camLive(im,id){clearTimeout(im._r);let snap=0,poll=0;const st=im.parentNode&&im.parentNode.querySelector('.camst');
+ const startLive=()=>{snap=0;clearInterval(poll);if(st)st.textContent='Live';im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`;im._r=setTimeout(startLive,9*60e3)};
+ im.onerror=()=>{if(snap)return;snap=1;clearTimeout(im._r);if(st)st.textContent='Beeld per seconde';poll=setInterval(()=>{if(!CAMW.el){clearInterval(poll);return}const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000);im._r=setTimeout(startLive,60e3)};
+ im._stop=()=>{clearTimeout(im._r);clearInterval(poll);im.onerror=null;im.src=''};startLive()}
+function camWall(){const slot=document.getElementById('camslot');if(!slot||!S.cam||!S.cam.cams)return;const key=S.cam.cams.map(c=>c.id).join(',');
+ if(!CAMW.el||CAMW.key!==key){camWallStop();const w=document.createElement('div');w.className='camwall';w.innerHTML=S.cam.cams.map(c=>`<button class="card camtile" data-act="camfs" aria-label="${esc(c.naam)} volledig scherm"><img alt="Live beeld ${esc(c.naam)}" data-e="${esc(c.id)}"><span class="camlbl"><b>${esc(c.naam)}</b> <span class="camst">Live</span></span></button>`).join('');
+  w.querySelectorAll('img').forEach(im=>camLive(im,im.dataset.e));CAMW.el=w;CAMW.key=key}
+ slot.replaceWith(CAMW.el)}
+function camWallStop(){if(CAMW.el){CAMW.el.querySelectorAll('img').forEach(im=>im._stop&&im._stop());CAMW.el.remove()}CAMW.el=null;CAMW.key=''}
+async function camWake(on){try{if(on){CAMW.wake=await navigator.wakeLock.request('screen');CAMW.wake.addEventListener('release',()=>{if(CAMW.want&&!document.hidden)camWake(1)})}else if(CAMW.wake){CAMW.want=0;await CAMW.wake.release();CAMW.wake=null}}catch(e){CAMW.wake=null}if(S.view==='cameras')render()}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&CAMW.want&&!CAMW.wake&&S.view==='cameras')camWake(1)});
 const camSrc=id=>`/api/camera/beeld?e=${encodeURIComponent(id)}&t=${Date.now()}`;
 const camHTML=()=>HACAM.length?HACAM.map(c=>`<div class="card camc"><div class="row"><div class="name">${esc(c.naam)}</div><span class="state">${c.staat==='unavailable'?'offline':''}</span></div><button class="camb" data-act="camlive" data-e="${esc(c.id)}" data-n="${esc(c.naam)}" aria-label="Live beeld ${esc(c.naam)}"><img class="camimg" data-e="${esc(c.id)}" src="${camSrc(c.id)}" alt="Camerabeeld ${esc(c.naam)}" onerror="this.style.opacity=.25"></button></div>`).join(''):`<div class="card soon"><div class="name">Camera’s</div><div class="state">Nog geen camera gevonden in Home Assistant</div></div>`;
 function camRefresh(){if(document.hidden||document.getElementById('camov'))return;document.querySelectorAll('.camimg').forEach(i=>{const n=new Image();n.onload=()=>{i.src=n.src;i.style.opacity=1};n.src=camSrc(i.dataset.e)})}
@@ -607,6 +620,15 @@ function floorPage(f){const rs=rl().filter(r=>r.f===f&&(S.role==='owner'||can('l
  return (kb?skyHTML():`<button class="back" data-act="goback">‹ Huis</button><h2 style="margin-top:6px">${esc(FL[f]||'')}</h2>`)+(S.role==='owner'&&lit||kb&&lit?`<div class="alloff"><button class="btn alt" data-act="flalloff" data-f="${f}">Alle lampen op deze verdieping uit</button></div>`:'')+`<div class="ftgrid">`+rs.map(r=>{const n=r.lights.filter(l=>l.on).length,t=r.ce&&r.c&&r.c.cur!=null;
   return `<button class="rt ${n?'on':''}" data-act="gort" data-r="${r.id}"><span class="ico">${svgI(roomIco(r))}</span><span class="ftn">${esc(r.name)}</span><span class="state">${r.lights.length?(n?n+' van '+r.lights.length+' aan':'Alles uit'):'Geen lampen'}${t?' · '+String(r.c.cur).replace('.',',')+'°':''}</span></button>`}).join('')+`</div>`}
 const VIEWS={
+cameras(){
+ if(S.role!=='owner')return '<h2>Camera’s</h2><p class="state">Alleen voor Joshua en Lorenzo.</p>';
+ if(!S.cam){S.cam={l:1};fetch('/api/camera').then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{S.cam=ok?{cams:j.cams||[],lijkt:j.lijkt||[]}:{err:j.error||'Laden mislukt'};if(S.view==='cameras')render()}).catch(()=>{S.cam={err:'Geen verbinding met de server'};if(S.view==='cameras')render()})}
+ const C=S.cam,top=`<div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><h2 style="margin:0;flex:1">Camera’s</h2><button class="btn ${CAMW.wake?'':'alt'}" data-act="camwake" aria-pressed="${!!CAMW.wake}">${CAMW.wake?'Scherm blijft aan':'Scherm aan houden'}</button><button class="btn alt" data-act="camreload">Opnieuw zoeken</button></div>`;
+ if(C.l)return top+'<p class="state">Camera’s zoeken in Home Assistant…</p>';
+ if(C.err)return top+`<div class="card"><div class="name">Geen beeld</div><div class="state">${esc(C.err)}</div></div>`;
+ if(!C.cams.length)return top+`<div class="card"><div class="name">Nog geen camera gevonden in Home Assistant</div><div class="state">Het dashboard toont elke entiteit die met <b>camera.</b> begint. Kijk in Home Assistant bij Instellingen, Apparaten en diensten, Tuya, je camera: staat daar een entiteit “Camera” met beeld? Zo niet, dan geeft Tuya voor dit model geen beeld door aan Home Assistant.</div>${C.lijkt.length?`<div class="state" style="margin-top:10px">Wel gevonden, maar geen camerabeeld:</div><ul class="state">${C.lijkt.map(x=>`<li>${esc(x.naam)} <span style="opacity:.6">(${esc(x.id)})</span></li>`).join('')}</ul>`:''}</div>`;
+ setTimeout(camWall,0);
+ return top+'<div id="camslot"></div><p class="state" style="margin-top:10px">Live beeld blijft aan zolang deze pagina open staat. Tik op een beeld voor volledig scherm.</p>'},
 groepen(){
  if(S.role!=='owner')return '<h2>Groepen en scènes</h2><p class="state">Alleen eigenaren kunnen groepen en scènes beheren.</p>';
  const A=allLights();
@@ -959,7 +981,7 @@ function lampHTML(l,i){return `<div class="card lamp ${l.on?'on':''}" style="--b
 <div class="row"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC.home}"/></svg></span><button class="tog" data-act="tog" data-i="${i}" aria-pressed="${l.on}" aria-label="${esc(l.n)} aan of uit"></button></div>
 <div class="name" style="margin-top:10px">${esc(l.n)}</div><div class="state">${l.on?l.b+'%':'Uit'}</div>
 <input type="range" min="1" max="100" value="${l.b}" data-act="bri" data-i="${i}" aria-label="Helderheid ${esc(l.n)}">${l.e&&hasW(l)?`<button class="btn alt kl" data-act="lcolbtn" data-i="${i}">Kleur</button>${S.col===S.room+':'+i?swatches('lcol',`data-i="${i}"`,l):''}`:''}</div>`}
-const IC={assistent:'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',klimaat:'M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9M9 4l3 2 3-2M9 20l3-2 3 2',meer:'M5 12h.01M12 12h.01M19 12h.01',overzicht:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',home:'M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z',agenda:'M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM4 10h16M9 3v4M15 3v4',taken:'M5 12.5l4.5 4.5L19 7',boodschappen:'M3 9h18l-2 11H5zM8 9l3-5M16 9l-3-5',afval:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',leningen:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5C10 8.5 11 8 12 8c1.4 0 2.5.7 2.5 1.8 0 2.4-5 1.4-5 4 0 1.1 1.1 1.9 2.5 1.9 1 0 2-.5 2.5-1.5M12 6.5V8m0 8v1.5',boek:'M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM9 4v16M12 9h4M12 13h4',recepten:'M6 3h12v18l-6-4-6 4z',ruimtes:'M4 8h16M4 16h16M9 5v6M15 13v6',groepen:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',gasten:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 3-5 6-5s6 2 6 5M17 11a2.5 2.5 0 1 0 0-5M21 19c0-2.2-1.6-3.8-3.5-4.4',notities:'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7'};
+const IC={cameras:'M3 7h12v10H3zM15 10l6-3v10l-6-3',assistent:'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',klimaat:'M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9M9 4l3 2 3-2M9 20l3-2 3 2',meer:'M5 12h.01M12 12h.01M19 12h.01',overzicht:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',home:'M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z',agenda:'M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM4 10h16M9 3v4M15 3v4',taken:'M5 12.5l4.5 4.5L19 7',boodschappen:'M3 9h18l-2 11H5zM8 9l3-5M16 9l-3-5',afval:'M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13',leningen:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9.5C10 8.5 11 8 12 8c1.4 0 2.5.7 2.5 1.8 0 2.4-5 1.4-5 4 0 1.1 1.1 1.9 2.5 1.9 1 0 2-.5 2.5-1.5M12 6.5V8m0 8v1.5',boek:'M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM9 4v16M12 9h4M12 13h4',recepten:'M6 3h12v18l-6-4-6 4z',ruimtes:'M4 8h16M4 16h16M9 5v6M15 13v6',groepen:'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',gasten:'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 3-5 6-5s6 2 6 5M17 11a2.5 2.5 0 1 0 0-5M21 19c0-2.2-1.6-3.8-3.5-4.4',notities:'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h7'};
 function dialHTML(r){const c=cc(r),mn=15,mx=28,f=(c.set-mn)/(mx-mn);let t='';
  for(let i=0;i<=40;i++){const a=(135+270*i/40)*Math.PI/180,x1=110+94*Math.cos(a),y1=110+94*Math.sin(a),x2=110+102*Math.cos(a),y2=110+102*Math.sin(a);
   t+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${i/40<=f+.001?'var(--ring)':'rgba(255,255,255,.2)'}" stroke-width="2.5" stroke-linecap="round"/>`}
@@ -971,6 +993,7 @@ try{const n=JSON.parse(sessionStorage.getItem('huis.nav')||'null');if(n&&typeof 
 function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL=1;fetch('/api/bank/status').then(r=>r.ok?r.json():null).then(j=>{S.bank=j;render()}).catch(()=>{S.bank=null})}
 
  if(KIOSK!=null){S.view='home';S.fl=KIOSK}
+ if(S.view!=='cameras'&&CAMW.el){camWallStop();if(CAMW.wake){CAMW.want=0;CAMW.wake.release().catch(()=>{});CAMW.wake=null}}
  const owner=S.role==='owner';
  $('#sub').textContent=owner?'Eigenaarsweergave: alles zichtbaar':'Weergave voor familie en gasten: alleen wat jullie toestaan';
  if(S.role==='guest'){if(!D.guests.find(g=>g.id===S.pg))S.pg=(D.guests[0]||{}).id;const gm=GM();S.view=(S.view==='notities'&&(myNotes().length||gnote()))||(gm.some(x=>x[0]===S.view))?S.view:'home'}
@@ -1018,6 +1041,9 @@ function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL
 document.addEventListener('click',e=>{
  const t=e.target.closest('button');if(!t)return;
  if(t.dataset.act==='camlive'){camOpen(t.dataset.e,t.dataset.n);return}
+ if(t.dataset.act==='camfs'){const el=t;(el.requestFullscreen?el.requestFullscreen():Promise.reject()).catch(()=>{el.classList.toggle('camgroot')});return}
+ if(t.dataset.act==='camwake'){if(CAMW.wake){camWake(0)}else{CAMW.want=1;camWake(1)}return}
+ if(t.dataset.act==='camreload'){S.cam=null;camWallStop();render();return}
  if(t.dataset.act==='camclose'){camClose();return}
  const r=cur();
  if(t.dataset.role){S.role=t.dataset.role;render();return}

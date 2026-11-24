@@ -680,7 +680,10 @@ http.createServer(async (req, res) => {
       if (p === '/api/camera') {
         try {
           const all = await haCall(cfg, '/api/states');
-          return json(res, 200, { cams: all.filter(e => e.entity_id.startsWith('camera.')).map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state })) });
+          const cams = all.filter(e => e.entity_id.startsWith('camera.')).map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state }));
+          // Hulp bij zoeken: entiteiten die op een camera lijken maar geen camera-entiteit zijn (bijv. een Tuya-camera die alleen schakelaars heeft)
+          const lijkt = cams.length ? [] : all.filter(e => !e.entity_id.startsWith('camera.') && /cam|camera|ipc|beveilig/i.test(e.entity_id + ' ' + (e.attributes.friendly_name || ''))).slice(0, 15).map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id }));
+          return json(res, 200, { cams, lijkt });
         } catch (e) { return json(res, 502, { error: haErr(e) }); }
       }
       const ent = String(url.searchParams.get('e') || '');
