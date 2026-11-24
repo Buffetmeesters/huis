@@ -673,6 +673,34 @@ http.createServer(async (req, res) => {
       if (p === '/api/bank/unlink' && req.method === 'POST') { const ub = JSON.parse((await body(req)) || '{}').bank; c.sessions = c.sessions.filter(x => x.bank !== ub); bankPut(c); return json(res, 200, { ok: true }); }
       return json(res, 404, { error: 'Onbekend' });
     }
+    if (p.startsWith('/api/camera')) {
+      // Camera's uit Home Assistant (bijv. Tuya): alleen eigenaren, nooit gasten. Beelden lopen via deze server, het HA-token blijft hier.
+      const s = session(req); if (!s || s.role !== 'owner') return json(res, 403, { error: 'Alleen voor eigenaren' });
+      const cfg = haCfg(); if (!cfg) return json(res, 503, { error: 'Home Assistant is niet gekoppeld' });
+      if (p === '/api/camera') {
+        try {
+          const all = await haCall(cfg, '/api/states');
+          return json(res, 200, { cams: all.filter(e => e.entity_id.startsWith('camera.')).map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id, staat: e.state })) });
+        } catch (e) { return json(res, 502, { error: haErr(e) }); }
+      }
+      const ent = String(url.searchParams.get('e') || '');
+      if (!/^camera\.[a-z0-9_]+$/.test(ent)) return json(res, 400, { error: 'Onbekende camera' });
+      const live = p === '/api/camera/live';
+      if (!live && p !== '/api/camera/beeld') return json(res, 404, { error: 'Onbekend' });
+      const ac = new AbortController(), stop = () => ac.abort();
+      req.on('close', stop);
+      const max = setTimeout(stop, live ? 10 * 60e3 : 15e3);   // live beeld stopt na 10 minuten vanzelf
+      try {
+        const r = await fetch(cfg.url + (live ? '/api/camera_proxy_stream/' : '/api/camera_proxy/') + ent, { headers: { Authorization: 'Bearer ' + cfg.token }, signal: ac.signal });
+        if (!r.ok || !r.body) { clearTimeout(max); return json(res, 502, { error: 'Camera gaf geen beeld (' + r.status + ')' }); }
+        res.writeHead(200, { 'content-type': r.headers.get('content-type') || 'image/jpeg', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+        const rd = r.body.getReader();
+        for (;;) { const { done, value } = await rd.read(); if (done) break; if (!res.write(value)) await new Promise(ok => res.once('drain', ok)); }
+        res.end();
+      } catch (e) { if (!res.headersSent) json(res, 502, { error: 'Geen beeld: ' + (e.name === 'AbortError' ? 'te traag' : e.message) }); else res.end(); }
+      finally { clearTimeout(max); req.off('close', stop); }
+      return;
+    }
     if (p === '/api/jolofix/status') {
       // Jolofix-beheer: live status van de websites en systemen (alleen Joshua en Lorenzo).
       const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });

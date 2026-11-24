@@ -231,6 +231,7 @@ body.kiosk .tog[aria-pressed=true]::after{transform:translateX(26px)}
 body.kiosk .btn,body.kiosk .chip{padding:14px 20px;font-size:1.05rem}
 body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
 .alloff{display:flex;gap:12px;margin:18px 0 4px;flex-wrap:wrap}
+.camc .camb{display:block;width:100%;padding:0;margin-top:8px;border:0;background:#0003;border-radius:12px;overflow:hidden;cursor:pointer}.camc img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;transition:opacity .3s}#camov{position:fixed;inset:0;z-index:999;background:#000e;display:flex;flex-direction:column;padding:12px;gap:10px}#camov img{flex:1;min-height:0;width:100%;object-fit:contain}.camov-k{display:flex;align-items:center;gap:12px;color:#fff}.camov-k strong{flex:1}
 </style>
 </head>
 <body>
@@ -318,7 +319,18 @@ const rl=()=>S.role==='owner'?S.rooms:S.rooms.filter(r=>RP(r.id)&&Object.values(
 const cd=()=>String(Math.floor(100000+Math.random()*900000));
 const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><button class="chip" data-act="toowner">‹ Terug naar eigenaar</button><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let MIGPH=0,GUEST=false,HAL=[],HAM=[],HAC=[];
+const camSrc=id=>`/api/camera/beeld?e=${encodeURIComponent(id)}&t=${Date.now()}`;
+const camHTML=()=>HACAM.length?HACAM.map(c=>`<div class="card camc"><div class="row"><div class="name">${esc(c.naam)}</div><span class="state">${c.staat==='unavailable'?'offline':''}</span></div><button class="camb" data-act="camlive" data-e="${esc(c.id)}" data-n="${esc(c.naam)}" aria-label="Live beeld ${esc(c.naam)}"><img class="camimg" data-e="${esc(c.id)}" src="${camSrc(c.id)}" alt="Camerabeeld ${esc(c.naam)}" onerror="this.style.opacity=.25"></button></div>`).join(''):`<div class="card soon"><div class="name">Camera’s</div><div class="state">Nog geen camera gevonden in Home Assistant</div></div>`;
+function camRefresh(){if(document.hidden||document.getElementById('camov'))return;document.querySelectorAll('.camimg').forEach(i=>{const n=new Image();n.onload=()=>{i.src=n.src;i.style.opacity=1};n.src=camSrc(i.dataset.e)})}
+setInterval(camRefresh,10000);
+function camOpen(id,naam){camClose();const o=document.createElement('div');o.id='camov';o.setAttribute('role','dialog');o.setAttribute('aria-label','Live beeld '+naam);
+ o.innerHTML=`<div class="camov-k"><strong>${esc(naam)}</strong><span class="state" id="camst">Live</span><button class="btn" data-act="camclose">Sluiten</button></div><img id="camlv" alt="Live beeld ${esc(naam)}">`;
+ document.body.appendChild(o);const im=o.querySelector('#camlv');let snap=0;
+ im.onerror=()=>{if(snap)return;snap=1;document.getElementById('camst').textContent='Beeld per seconde';CAMT=setInterval(()=>{const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000)};
+ im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`}
+function camClose(){clearInterval(CAMT);const o=document.getElementById('camov');if(o){const im=o.querySelector('img');if(im)im.src='';o.remove()}}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')camClose()});
+let MIGPH=0,GUEST=false,HAL=[],HAM=[],HAC=[],HACAM=[],CAMT=0;
 const LAST={};const i0=t=>+t.dataset.i;
 const WH=[[2200,'#ffb46b','Kaars'],[2700,'#ffc98e','Warm wit'],[4000,'#fff1e0','Neutraal'],[6000,'#dfe9ff','Koel wit']];
 const CO=[[0,100,'Rood'],[28,100,'Oranje'],[50,100,'Geel'],[120,100,'Groen'],[175,100,'Turquoise'],[230,100,'Blauw'],[270,100,'Paars'],[320,80,'Roze']];
@@ -997,7 +1009,7 @@ function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL
  if(r.id==='voordeur')X+=`<h2>Voordeur</h2><div class="grid"><div class="card soon"><div class="name">Videodeurbel</div><div class="state">Live beeld, beltoon en opnames volgen met de koppeling. Alleen zichtbaar voor Joshua en Lorenzo.</div></div></div>`;
  if(owner){X+=`<h2>Alleen voor jullie</h2><div class="grid">
  <div class="card soon"><div class="name">Videodeurbel</div><div class="state">Koppelen in fase 2</div></div>
- <div class="card soon"><div class="name">Camera’s</div><div class="state">3 camera’s volgen later</div></div>
+ ${camHTML()}
  <div class="card soon"><div class="name">Deursensoren</div><div class="state">Volgen later</div></div>
  <div class="card"><div class="name">Systeem</div><div class="state">Home Assistant, Hue Bridge en back-up: demo</div></div>
  <div class="card"><div class="name">Cloud</div><div class="state">Foto’s en bestanden</div><div class="mini"><button class="btn alt">Openen</button></div></div></div>`}
@@ -1005,6 +1017,8 @@ function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL
 }
 document.addEventListener('click',e=>{
  const t=e.target.closest('button');if(!t)return;
+ if(t.dataset.act==='camlive'){camOpen(t.dataset.e,t.dataset.n);return}
+ if(t.dataset.act==='camclose'){camClose();return}
  const r=cur();
  if(t.dataset.role){S.role=t.dataset.role;render();return}
  if(t.dataset.room){S.room=t.dataset.room;render();return}
@@ -1170,7 +1184,7 @@ if(!GUEST&&!D.rec6){D.rec6=1;if(!D.recipes.some(r=>/passionfruit milkcocktail/i.
 if(!GUEST&&!D.rec2){D.rec2=1;if(!D.recipes.some(r=>/cocktail strawberry cream/i.test(r.n)))D.recipes.push({n:'Cocktail strawberry cream',m:5,k:0,p:1,t:['Cocktails'],c:'Cocktails',d:'',i:'30 ml vodka\n30 ml licor 43\n60 ml gepureerde aarbei\n2 aardbeien\n30 ml slagroom\n5 ml limon sap\nFlinke schep crushed ijs\n1 glas vol ijsklontjes',s:'',img:''});save()}if(!GUEST){D.phr.forEach((p,k)=>{if(!p.id)p.id='p'+k+'x'+Date.now();if(/^Het eten is klaar/.test(p.t)&&!(p.fl||[]).includes(2))p.fl=[0,1,2]});D.guests.forEach(g=>{if(g.anyw===undefined&&/^dennis$/i.test(g.n)){g.anyw=true;MIGPH=1}if(!g.ph){g.ph=g.mod&&g.mod.omroep?D.phr.filter(p=>p.gast).map(p=>p.id):[];MIGPH=1}})}if(!D.groups)D.groups=[];if(!D.scn)D.scn=[];D.guests=D.guests.filter(g=>g.id!=='dennis'||g.rp);D.guests.forEach(g=>{if(!g.rp){g.rp={};(g.rooms||[]).forEach(id=>{if(S.rooms.some(r=>r.id===id))g.rp[id]=Object.fromEntries(KS(id).filter(k=>(g.perm||{})[k]).map(k=>[k,1]))})}});if(!D.guests.some(g=>g.id==='dennis'))D.guests.unshift({id:'dennis',n:'Dennis',until:'',code:cd(),rp:Object.fromEntries(S.rooms.map(r=>[r.id,Object.fromEntries(KS(r.id).map(k=>[k,1]))]))});
 if(ME&&ME.role==='owner'&&['Joshua','Lorenzo'].includes(ME.name)){const j=document.getElementById('hjf');if(j)j.style.display=''}
 if(ME){ADM=ME.admin?'Admin':ME.canCreateAdmin?'Admin instellen':'';D.me=ME.name==='Admin'?'Joshua':ME.name;{const h=document.getElementById('hal');if(h&&!GUEST){if(ME.admin){h.style.display=''}else if(ME.canCreateAdmin){h.textContent='Admin instellen';h.style.display=''}}}if(GUEST){const h=document.getElementById('hal');if(h)h.style.display='none';S.role='guest';S.pg=ME.id;const sg=document.querySelector('.seg');if(sg)sg.style.display='none'}}
-if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'));{const l=HAM.map(x=>x.id);if(JSON.stringify(l)!==JSON.stringify(D.spl||[])){D.spl=l;save()}}}}catch(e){}}
+if(ME&&ME.role==='owner'){try{const r=await fetch('/api/ha/entities');if(r.status===200){const ents=(await r.json()).entiteiten;HAL=ents.filter(x=>x.id.startsWith('light.'));HAM=ents.filter(x=>x.id.startsWith('media_player.'));HAC=ents.filter(x=>x.id.startsWith('climate.'));HACAM=ents.filter(x=>x.id.startsWith('camera.'));{const l=HAM.map(x=>x.id);if(JSON.stringify(l)!==JSON.stringify(D.spl||[])){D.spl=l;save()}}}}catch(e){}}
 render();
 if(!fromSrv||MIGPH)save();
 setInterval(()=>{const c=document.getElementById('skyclock');if(c)c.textContent=hm(new Date())},5000);applySky();setInterval(()=>{applySky();if(S.view==='overzicht'||S.view==='home'&&!S.rm)render()},60000);(()=>{try{const gp=new URLSearchParams(location.search).get('google');if(gp){const m={ok:'Google Agenda is gekoppeld.',geweigerd:'Koppelen is geannuleerd.',verlopen:'De koppeling duurde te lang. Probeer het opnieuw.',geenrefresh:'Google gaf geen blijvende toestemming. Probeer het nog eens.',fout:'Koppelen is mislukt.'};S.view='agenda';history.replaceState(null,'','/');setTimeout(()=>{render();toast(m[gp]||'Klaar');loadGoogle(true)},600)}}catch(e){}})();
