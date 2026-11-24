@@ -345,7 +345,7 @@ function camLive(im,id){
    else if(v.canPlayType('application/vnd.apple.mpegurl'))v.src=j.url;else return later(3600e3,'Video wordt niet ondersteund in deze browser');
    v.play().catch(()=>{});
    v.onplaying=()=>{setTimeout(()=>{if(!T.hls&&!v.src)return;if(v.currentTime>0&&v.videoWidth>0){clearTimeout(T.to);stopMj();im.hidden=true;v.hidden=false;lbl('Live',T.why)}},1500)};
-   T.to=setTimeout(()=>{if(v.hidden)later(300e3,(T.why||'Video')+': start niet')},25e3);
+   T.to=setTimeout(()=>{if(v.hidden)later(300e3,(T.why||'Video')+': start niet binnen 60 s')},60e3);
    T.last=-1;T.still=0;T.wd=setInterval(()=>{if(document.hidden||!CAMW.el||v.hidden)return;if(v.currentTime===T.last){if(++T.still>=4)later(5e3,'Video stond stil')}else{T.last=v.currentTime;T.still=0}},5000);
   }catch(e){later(300e3,'Video: geen verbinding')}};
  im._stop=()=>{clearTimeout(T.try);stopHls();stopMj()};
