@@ -686,8 +686,41 @@ http.createServer(async (req, res) => {
           return json(res, 200, { cams, lijkt });
         } catch (e) { return json(res, 502, { error: haErr(e) }); }
       }
+      if (p.startsWith('/api/camera/hlsp/')) {
+        // HLS-stream van Home Assistant doorgeven (playlist en stukjes video); het token zit in het pad, alleen eigenaren komen hier.
+        const rest = p.slice('/api/camera/hlsp/'.length);
+        if (!/^[A-Za-z0-9_\-]+\/[A-Za-z0-9_.\/\-]+$/.test(rest) || rest.includes('..')) return json(res, 400, { error: 'Onbekend' });
+        const ac = new AbortController(); req.on('close', () => ac.abort());
+        try {
+          const r = await fetch(cfg.url + '/api/hls/' + rest + url.search, { headers: { Authorization: 'Bearer ' + cfg.token }, signal: ac.signal });
+          res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/octet-stream', 'cache-control': 'no-store' });
+          if (!r.body) return res.end();
+          const rd = r.body.getReader();
+          for (;;) { const { done, value } = await rd.read(); if (done) break; if (!res.write(value)) await new Promise(ok => res.once('drain', ok)); }
+          return res.end();
+        } catch (e) { if (!res.headersSent) return json(res, 502, { error: 'Geen beeld' }); return res.end(); }
+      }
       const ent = String(url.searchParams.get('e') || '');
       if (!/^camera\.[a-z0-9_]+$/.test(ent)) return json(res, 400, { error: 'Onbekende camera' });
+      if (p === '/api/camera/hls') {
+        // Vraag Home Assistant (websocket, camera/stream) om een HLS-adres; de browser speelt het af via /api/camera/hlsp/.
+        try {
+          const u = await new Promise((ok, nok) => {
+            const ws = new WebSocket(cfg.url.replace(/^http/, 'ws') + '/api/websocket');
+            const t = setTimeout(() => { try { ws.close(); } catch {} nok(new Error('te traag')); }, 20000);
+            ws.onerror = () => { clearTimeout(t); nok(new Error('geen verbinding')); };
+            ws.onmessage = m => {
+              let d; try { d = JSON.parse(m.data); } catch { return; }
+              if (d.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: cfg.token }));
+              else if (d.type === 'auth_ok') ws.send(JSON.stringify({ id: 1, type: 'camera/stream', entity_id: ent }));
+              else if (d.type === 'auth_invalid') { clearTimeout(t); ws.close(); nok(new Error('token ongeldig')); }
+              else if (d.id === 1) { clearTimeout(t); ws.close(); d.success && d.result && d.result.url ? ok(d.result.url) : nok(new Error((d.error && d.error.message) || 'geen stream')); }
+            };
+          });
+          const m = /^\/api\/hls\/(.+)$/.exec(u); if (!m) return json(res, 502, { error: 'Onverwacht adres' });
+          return json(res, 200, { url: '/api/camera/hlsp/' + m[1] });
+        } catch (e) { return json(res, 502, { error: 'Geen stream: ' + e.message }); }
+      }
       const live = p === '/api/camera/live';
       if (!live && p !== '/api/camera/beeld') return json(res, 404, { error: 'Onbekend' });
       const ac = new AbortController(), stop = () => ac.abort();
@@ -1524,7 +1557,7 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: 'Onbekend' });
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Onbekend' });
-    const ICONS = { '/favicon.svg': ['favicon.svg', 'image/svg+xml'], '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'], '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'], '/icon-maskable.png': ['icon-maskable.png', 'image/png'], '/icon-f0-192.png': ['icon-f0-192.png', 'image/png'], '/icon-f0-512.png': ['icon-f0-512.png', 'image/png'], '/apple-touch-icon-f0.png': ['apple-touch-icon-f0.png', 'image/png'], '/icon-f1-192.png': ['icon-f1-192.png', 'image/png'], '/icon-f1-512.png': ['icon-f1-512.png', 'image/png'], '/apple-touch-icon-f1.png': ['apple-touch-icon-f1.png', 'image/png'], '/icon-f2-192.png': ['icon-f2-192.png', 'image/png'], '/icon-f2-512.png': ['icon-f2-512.png', 'image/png'], '/apple-touch-icon-f2.png': ['apple-touch-icon-f2.png', 'image/png'], '/sw.js': ['sw.js', 'text/javascript'] };
+    const ICONS = { '/favicon.svg': ['favicon.svg', 'image/svg+xml'], '/icon-192.png': ['icon-192.png', 'image/png'], '/icon-512.png': ['icon-512.png', 'image/png'], '/apple-touch-icon.png': ['apple-touch-icon.png', 'image/png'], '/icon-maskable.png': ['icon-maskable.png', 'image/png'], '/icon-f0-192.png': ['icon-f0-192.png', 'image/png'], '/icon-f0-512.png': ['icon-f0-512.png', 'image/png'], '/apple-touch-icon-f0.png': ['apple-touch-icon-f0.png', 'image/png'], '/icon-f1-192.png': ['icon-f1-192.png', 'image/png'], '/icon-f1-512.png': ['icon-f1-512.png', 'image/png'], '/apple-touch-icon-f1.png': ['apple-touch-icon-f1.png', 'image/png'], '/icon-f2-192.png': ['icon-f2-192.png', 'image/png'], '/icon-f2-512.png': ['icon-f2-512.png', 'image/png'], '/apple-touch-icon-f2.png': ['apple-touch-icon-f2.png', 'image/png'], '/sw.js': ['sw.js', 'text/javascript'], '/hls.min.js': ['hls.min.js', 'text/javascript'] };
     if (ICONS[p]) { res.writeHead(200, { 'content-type': ICONS[p][1], 'cache-control': p === '/sw.js' ? 'no-cache' : 'public, max-age=86400' }); return fs.createReadStream(path.join(PUB, ICONS[p][0])).pipe(res); }
     if (p === '/manifest.webmanifest') {
       const fv = url.searchParams.get('verdieping'), f = /^[0-2]$/.test(fv || '') ? +fv : null, nm = ['Begane grond', '1e verdieping', '2e verdieping'], sn = ['Huis BG', 'Huis 1', 'Huis 2'];

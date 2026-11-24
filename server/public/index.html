@@ -232,7 +232,7 @@ body.kiosk .btn,body.kiosk .chip{padding:14px 20px;font-size:1.05rem}
 body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
 .alloff{display:flex;gap:12px;margin:18px 0 4px;flex-wrap:wrap}
 .camc .camb{display:block;width:100%;padding:0;margin-top:8px;border:0;background:#0003;border-radius:12px;overflow:hidden;cursor:pointer}.camc img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;transition:opacity .3s}#camov{position:fixed;inset:0;z-index:999;background:#000e;display:flex;flex-direction:column;padding:12px;gap:10px}#camov img{flex:1;min-height:0;width:100%;object-fit:contain}.camov-k{display:flex;align-items:center;gap:12px;color:#fff}.camov-k strong{flex:1}
-.camwall{display:grid;gap:3px;background:#000;border-radius:14px;overflow:hidden;grid-template-columns:repeat(var(--k,1),minmax(0,1fr))}@media(max-width:760px){.camwall{grid-template-columns:1fr}}@media(min-width:761px) and (max-width:1100px){.camwall{grid-template-columns:repeat(min(var(--k,1),2),minmax(0,1fr))}}.camtile{position:relative;padding:0;margin:0;overflow:hidden;cursor:pointer;background:#000;border:0;border-radius:0;box-shadow:none}.camtile img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#000}.camlbl{position:absolute;left:8px;top:6px;color:#fff;font-size:.9rem;font-weight:600;text-shadow:0 1px 3px #000,0 0 2px #000;pointer-events:none}.camlbl .camst{font-weight:400;opacity:.75;font-size:.8rem}.camwall:fullscreen,.camwall.camvol{position:fixed;inset:0;z-index:998;border-radius:0;width:100vw;height:100vh;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));grid-template-rows:repeat(var(--r,1),minmax(0,1fr))}.camwall:fullscreen .camtile img,.camwall.camvol .camtile img{height:100%;aspect-ratio:auto}.camwall.solo{grid-template-columns:1fr;grid-template-rows:1fr}.camwall.solo .camtile:not(.sel){display:none}.camtile:fullscreen img{height:100%;aspect-ratio:auto;object-fit:contain}.camtile.camgroot{position:fixed;inset:0;z-index:998}.camtile.camgroot img{height:100%;aspect-ratio:auto}
+.camwall{display:grid;gap:3px;background:#000;border-radius:14px;overflow:hidden;grid-template-columns:repeat(var(--k,1),minmax(0,1fr))}@media(max-width:760px){.camwall{grid-template-columns:1fr}}@media(min-width:761px) and (max-width:1100px){.camwall{grid-template-columns:repeat(min(var(--k,1),2),minmax(0,1fr))}}.camtile{position:relative;padding:0;margin:0;overflow:hidden;cursor:pointer;background:#000;border:0;border-radius:0;box-shadow:none}.camtile img,.camtile video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#000}.camtile [hidden]{display:none}.camlbl{position:absolute;left:8px;top:6px;color:#fff;font-size:.9rem;font-weight:600;text-shadow:0 1px 3px #000,0 0 2px #000;pointer-events:none}.camlbl .camst{font-weight:400;opacity:.75;font-size:.8rem}.camwall:fullscreen,.camwall.camvol{position:fixed;inset:0;z-index:998;border-radius:0;width:100vw;height:100vh;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));grid-template-rows:repeat(var(--r,1),minmax(0,1fr))}.camwall:fullscreen .camtile img,.camwall.camvol .camtile img,.camwall:fullscreen .camtile video,.camwall.camvol .camtile video{height:100%;aspect-ratio:auto}.camwall.solo{grid-template-columns:1fr;grid-template-rows:1fr}.camwall.solo .camtile:not(.sel){display:none}.camtile:fullscreen img,.camtile:fullscreen video{height:100%;aspect-ratio:auto;object-fit:contain}.camtile.camgroot{position:fixed;inset:0;z-index:998}.camtile.camgroot img{height:100%;aspect-ratio:auto}
 </style>
 </head>
 <body>
@@ -321,10 +321,27 @@ const cd=()=>String(Math.floor(100000+Math.random()*900000));
 const guestBar=()=>(S.role==='owner'||GUEST)?'':`<div class="chips" style="margin-bottom:12px"><button class="chip" data-act="toowner">‹ Terug naar eigenaar</button><span class="state" style="align-self:center">Bekijk als</span>${D.guests.map(g=>`<button class="chip" data-act="pg" data-k="${g.id}" aria-pressed="${S.pg===g.id}">${esc(g.n)}</button>`).join('')}</div>`;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let CAMW={el:null,key:'',wake:null,t:[]};
-function camLive(im,id){clearTimeout(im._r);let snap=0,poll=0;const st=im.parentNode&&im.parentNode.querySelector('.camst');
- const startLive=()=>{snap=0;clearInterval(poll);if(st)st.textContent='Live';im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`;im._r=setTimeout(startLive,9*60e3)};
- im.onerror=()=>{if(snap)return;snap=1;clearTimeout(im._r);if(st)st.textContent='Beeld per seconde';poll=setInterval(()=>{if(!CAMW.el){clearInterval(poll);return}const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000);im._r=setTimeout(startLive,60e3)};
- im._stop=()=>{clearTimeout(im._r);clearInterval(poll);im.onerror=null;im.src=''};startLive()}
+let HLSP=null;const hlsLib=()=>HLSP||(HLSP=new Promise((ok,nok)=>{if(window.Hls)return ok(window.Hls);const sc=document.createElement('script');sc.src='/hls.min.js';sc.onload=()=>ok(window.Hls);sc.onerror=()=>{HLSP=null;nok()};document.head.appendChild(sc)}));
+function camLive(im,id){
+ const tile=im.parentNode,st=tile.querySelector('.camst');let v=tile.querySelector('video');
+ if(!v){v=document.createElement('video');v.muted=true;v.playsInline=true;v.autoplay=true;v.hidden=true;v.setAttribute('aria-label',im.alt);tile.insertBefore(v,im)}
+ const T={hls:null,poll:0,retry:0,wd:0,last:-1,still:0,mode:''};
+ const lbl=t=>{if(st)st.textContent=t};
+ const clear=()=>{clearInterval(T.poll);clearTimeout(T.retry);clearInterval(T.wd);if(T.hls){try{T.hls.destroy()}catch(e){}T.hls=null}v.removeAttribute('src');try{v.load()}catch(e){}im.onerror=null;im.src=''};
+ const mjpeg=()=>{clear();T.mode='mjpeg';v.hidden=true;im.hidden=false;lbl('Live');let snap=0;
+  im.onerror=()=>{if(snap)return;snap=1;lbl('Beeld per seconde');T.poll=setInterval(()=>{if(!CAMW.el){clearInterval(T.poll);return}const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000)};
+  im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`;T.retry=setTimeout(hls,60e3)};
+ const hls=async()=>{clear();T.mode='hls';lbl('Verbinden…');
+  try{const r=await fetch(`/api/camera/hls?e=${encodeURIComponent(id)}`);const j=await r.json();if(!r.ok||!j.url)throw 0;if(!CAMW.el)return;
+   const H=await hlsLib().catch(()=>null);
+   if(H&&H.isSupported()){T.hls=new H({liveSyncDurationCount:2,liveMaxLatencyDurationCount:6,maxLiveSyncPlaybackRate:1.5,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:4,fragLoadingMaxRetry:4});
+    T.hls.on(H.Events.ERROR,(e,d)=>{if(d&&d.fatal)mjpeg()});T.hls.loadSource(j.url);T.hls.attachMedia(v)}
+   else if(v.canPlayType('application/vnd.apple.mpegurl'))v.src=j.url;else throw 0;
+   v.hidden=false;im.hidden=true;v.play().catch(()=>{});lbl('Live');
+   // waakhond: staat het beeld 20 seconden stil, dan opnieuw verbinden
+   T.last=-1;T.still=0;T.wd=setInterval(()=>{if(document.hidden||!CAMW.el)return;if(v.currentTime===T.last){if(++T.still>=4)hls()}else{T.last=v.currentTime;T.still=0}},5000);
+  }catch(e){mjpeg()}};
+ im._stop=()=>{clear()};hls()}
 function camWall(){const slot=document.getElementById('camslot');if(!slot||!S.cam||!S.cam.cams)return;const key=S.cam.cams.map(c=>c.id).join(',');
  if(!CAMW.el||CAMW.key!==key){camWallStop();const w=document.createElement('div');w.className='camwall';const n=S.cam.cams.length;const k=n<=1?1:n<=4?2:n<=9?3:4;w.style.setProperty('--k',k);w.style.setProperty('--r',Math.ceil(n/k));w.innerHTML=S.cam.cams.map(c=>`<button class="card camtile" data-act="camfs" aria-label="${esc(c.naam)} volledig scherm"><img alt="Live beeld ${esc(c.naam)}" data-e="${esc(c.id)}"><span class="camlbl"><b>${esc(c.naam)}</b> <span class="camst">Live</span></span></button>`).join('');
   w.querySelectorAll('img').forEach(im=>camLive(im,im.dataset.e));CAMW.el=w;CAMW.key=key}
