@@ -232,7 +232,7 @@ body.kiosk .btn,body.kiosk .chip{padding:14px 20px;font-size:1.05rem}
 body.kiosk *{-webkit-tap-highlight-color:transparent;user-select:none}
 .alloff{display:flex;gap:12px;margin:18px 0 4px;flex-wrap:wrap}
 .camc .camb{display:block;width:100%;padding:0;margin-top:8px;border:0;background:#0003;border-radius:12px;overflow:hidden;cursor:pointer}.camc img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;transition:opacity .3s}#camov{position:fixed;inset:0;z-index:999;background:#000e;display:flex;flex-direction:column;padding:12px;gap:10px}#camov img{flex:1;min-height:0;width:100%;object-fit:contain}.camov-k{display:flex;align-items:center;gap:12px;color:#fff}.camov-k strong{flex:1}
-.camwall{display:grid;gap:12px;grid-template-columns:repeat(var(--k,1),minmax(0,1fr))}@media(max-width:760px){.camwall{grid-template-columns:1fr}}@media(min-width:761px) and (max-width:1100px){.camwall{grid-template-columns:repeat(min(var(--k,1),2),minmax(0,1fr))}}.camtile{position:relative;padding:0;overflow:hidden;cursor:pointer;background:#000;border:0}.camtile img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000}.camtile:fullscreen img{height:100%;aspect-ratio:auto}.camlbl{position:absolute;left:10px;bottom:8px;padding:4px 10px;border-radius:999px;background:#000a;color:#fff;font-size:.85rem}.camtile.camgroot{position:fixed;inset:0;z-index:998;border-radius:0}.camtile.camgroot img{height:100%;aspect-ratio:auto}
+.camwall{display:grid;gap:3px;background:#000;border-radius:14px;overflow:hidden;grid-template-columns:repeat(var(--k,1),minmax(0,1fr))}@media(max-width:760px){.camwall{grid-template-columns:1fr}}@media(min-width:761px) and (max-width:1100px){.camwall{grid-template-columns:repeat(min(var(--k,1),2),minmax(0,1fr))}}.camtile{position:relative;padding:0;margin:0;overflow:hidden;cursor:pointer;background:#000;border:0;border-radius:0;box-shadow:none}.camtile img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#000}.camlbl{position:absolute;left:8px;top:6px;color:#fff;font-size:.9rem;font-weight:600;text-shadow:0 1px 3px #000,0 0 2px #000;pointer-events:none}.camlbl .camst{font-weight:400;opacity:.75;font-size:.8rem}.camwall:fullscreen,.camwall.camvol{position:fixed;inset:0;z-index:998;border-radius:0;width:100vw;height:100vh;grid-template-columns:repeat(var(--k,1),minmax(0,1fr));grid-template-rows:repeat(var(--r,1),minmax(0,1fr))}.camwall:fullscreen .camtile img,.camwall.camvol .camtile img{height:100%;aspect-ratio:auto}.camwall.solo{grid-template-columns:1fr;grid-template-rows:1fr}.camwall.solo .camtile:not(.sel){display:none}.camtile:fullscreen img{height:100%;aspect-ratio:auto;object-fit:contain}.camtile.camgroot{position:fixed;inset:0;z-index:998}.camtile.camgroot img{height:100%;aspect-ratio:auto}
 </style>
 </head>
 <body>
@@ -326,11 +326,12 @@ function camLive(im,id){clearTimeout(im._r);let snap=0,poll=0;const st=im.parent
  im.onerror=()=>{if(snap)return;snap=1;clearTimeout(im._r);if(st)st.textContent='Beeld per seconde';poll=setInterval(()=>{if(!CAMW.el){clearInterval(poll);return}const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000);im._r=setTimeout(startLive,60e3)};
  im._stop=()=>{clearTimeout(im._r);clearInterval(poll);im.onerror=null;im.src=''};startLive()}
 function camWall(){const slot=document.getElementById('camslot');if(!slot||!S.cam||!S.cam.cams)return;const key=S.cam.cams.map(c=>c.id).join(',');
- if(!CAMW.el||CAMW.key!==key){camWallStop();const w=document.createElement('div');w.className='camwall';const n=S.cam.cams.length;w.style.setProperty('--k',n<=1?1:n<=4?2:n<=9?3:4);w.innerHTML=S.cam.cams.map(c=>`<button class="card camtile" data-act="camfs" aria-label="${esc(c.naam)} volledig scherm"><img alt="Live beeld ${esc(c.naam)}" data-e="${esc(c.id)}"><span class="camlbl"><b>${esc(c.naam)}</b> <span class="camst">Live</span></span></button>`).join('');
+ if(!CAMW.el||CAMW.key!==key){camWallStop();const w=document.createElement('div');w.className='camwall';const n=S.cam.cams.length;const k=n<=1?1:n<=4?2:n<=9?3:4;w.style.setProperty('--k',k);w.style.setProperty('--r',Math.ceil(n/k));w.innerHTML=S.cam.cams.map(c=>`<button class="card camtile" data-act="camfs" aria-label="${esc(c.naam)} volledig scherm"><img alt="Live beeld ${esc(c.naam)}" data-e="${esc(c.id)}"><span class="camlbl"><b>${esc(c.naam)}</b> <span class="camst">Live</span></span></button>`).join('');
   w.querySelectorAll('img').forEach(im=>camLive(im,im.dataset.e));CAMW.el=w;CAMW.key=key}
  slot.replaceWith(CAMW.el)}
 function camWallStop(){if(CAMW.el){CAMW.el.querySelectorAll('img').forEach(im=>im._stop&&im._stop());CAMW.el.remove()}CAMW.el=null;CAMW.key=''}
 async function camWake(on){try{if(on){CAMW.wake=await navigator.wakeLock.request('screen');CAMW.wake.addEventListener('release',()=>{if(CAMW.want&&!document.hidden)camWake(1)})}else if(CAMW.wake){CAMW.want=0;await CAMW.wake.release();CAMW.wake=null}}catch(e){CAMW.wake=null}if(S.view==='cameras')render()}
+document.addEventListener('fullscreenchange',()=>{if(CAMW.el&&!document.fullscreenElement){CAMW.el.classList.remove('solo');CAMW.el.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'))}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&CAMW.want&&!CAMW.wake&&S.view==='cameras')camWake(1)});
 const camSrc=id=>`/api/camera/beeld?e=${encodeURIComponent(id)}&t=${Date.now()}`;
 const camHTML=()=>HACAM.length?HACAM.map(c=>`<div class="card camc"><div class="row"><div class="name">${esc(c.naam)}</div><span class="state">${c.staat==='unavailable'?'offline':''}</span></div><button class="camb" data-act="camlive" data-e="${esc(c.id)}" data-n="${esc(c.naam)}" aria-label="Live beeld ${esc(c.naam)}"><img class="camimg" data-e="${esc(c.id)}" src="${camSrc(c.id)}" alt="Camerabeeld ${esc(c.naam)}" onerror="this.style.opacity=.25"></button></div>`).join(''):`<div class="card soon"><div class="name">Camera’s</div><div class="state">Nog geen camera gevonden in Home Assistant</div></div>`;
@@ -342,7 +343,7 @@ function camOpen(id,naam){camClose();const o=document.createElement('div');o.id=
  im.onerror=()=>{if(snap)return;snap=1;document.getElementById('camst').textContent='Beeld per seconde';CAMT=setInterval(()=>{const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000)};
  im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`}
 function camClose(){clearInterval(CAMT);const o=document.getElementById('camov');if(o){const im=o.querySelector('img');if(im)im.src='';o.remove()}}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')camClose()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){camClose();if(CAMW.el){CAMW.el.classList.remove('camvol','solo')}}});
 let MIGPH=0,GUEST=false,HAL=[],HAM=[],HAC=[],HACAM=[],CAMT=0;
 const LAST={};const i0=t=>+t.dataset.i;
 const WH=[[2200,'#ffb46b','Kaars'],[2700,'#ffc98e','Warm wit'],[4000,'#fff1e0','Neutraal'],[6000,'#dfe9ff','Koel wit']];
@@ -623,12 +624,12 @@ const VIEWS={
 cameras(){
  if(S.role!=='owner')return '<h2>Camera’s</h2><p class="state">Alleen voor Joshua en Lorenzo.</p>';
  if(!S.cam){S.cam={l:1};fetch('/api/camera').then(r=>r.json().then(j=>({ok:r.ok,j}))).then(({ok,j})=>{S.cam=ok?{cams:j.cams||[],lijkt:j.lijkt||[]}:{err:j.error||'Laden mislukt'};if(S.view==='cameras')render()}).catch(()=>{S.cam={err:'Geen verbinding met de server'};if(S.view==='cameras')render()})}
- const C=S.cam,top=`<div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><h2 style="margin:0;flex:1">Camera’s</h2><button class="btn ${CAMW.wake?'':'alt'}" data-act="camwake" aria-pressed="${!!CAMW.wake}">${CAMW.wake?'Scherm blijft aan':'Scherm aan houden'}</button><button class="btn alt" data-act="camreload">Opnieuw zoeken</button></div>`;
+ const C=S.cam,top=`<div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:12px"><h2 style="margin:0;flex:1">Camera’s</h2><button class="btn" data-act="camall">Alle camera’s schermvullend</button><button class="btn ${CAMW.wake?'':'alt'}" data-act="camwake" aria-pressed="${!!CAMW.wake}">${CAMW.wake?'Scherm blijft aan':'Scherm aan houden'}</button><button class="btn alt" data-act="camreload">Opnieuw zoeken</button></div>`;
  if(C.l)return top+'<p class="state">Camera’s zoeken in Home Assistant…</p>';
  if(C.err)return top+`<div class="card"><div class="name">Geen beeld</div><div class="state">${esc(C.err)}</div></div>`;
  if(!C.cams.length)return top+`<div class="card"><div class="name">Nog geen camera gevonden in Home Assistant</div><div class="state">Het dashboard toont elke entiteit die met <b>camera.</b> begint. Kijk in Home Assistant bij Instellingen, Apparaten en diensten, Tuya, je camera: staat daar een entiteit “Camera” met beeld? Zo niet, dan geeft Tuya voor dit model geen beeld door aan Home Assistant.</div>${C.lijkt.length?`<div class="state" style="margin-top:10px">Wel gevonden, maar geen camerabeeld:</div><ul class="state">${C.lijkt.map(x=>`<li>${esc(x.naam)} <span style="opacity:.6">(${esc(x.id)})</span></li>`).join('')}</ul>`:''}</div>`;
  setTimeout(camWall,0);
- return top+'<div id="camslot"></div><p class="state" style="margin-top:10px">Live beeld blijft aan zolang deze pagina open staat. Tik op een beeld voor volledig scherm.</p>'},
+ return top+'<div id="camslot"></div><p class="state" style="margin-top:10px">Live beeld blijft aan zolang deze pagina open staat. Tik op een beeld voor volledig scherm; in de schermvullende weergave tik je op een camera om alleen die te zien en nog eens om terug te gaan.</p>'},
 groepen(){
  if(S.role!=='owner')return '<h2>Groepen en scènes</h2><p class="state">Alleen eigenaren kunnen groepen en scènes beheren.</p>';
  const A=allLights();
@@ -1041,6 +1042,8 @@ function render(){if(S.role==='owner'&&!GUEST&&S.bank===undefined&&!S.bkL){S.bkL
 document.addEventListener('click',e=>{
  const t=e.target.closest('button');if(!t)return;
  if(t.dataset.act==='camlive'){camOpen(t.dataset.e,t.dataset.n);return}
+ if(t.dataset.act==='camall'){const w=CAMW.el;if(w&&w.requestFullscreen)w.requestFullscreen().catch(()=>w.classList.toggle('camvol'));else if(w)w.classList.toggle('camvol');return}
+ if(t.dataset.act==='camfs'&&CAMW.el&&(document.fullscreenElement===CAMW.el||CAMW.el.classList.contains('camvol'))){const w=CAMW.el;if(w.classList.contains('solo')){w.classList.remove('solo');t.classList.remove('sel')}else{w.classList.add('solo');t.classList.add('sel')}return}
  if(t.dataset.act==='camfs'){const el=t;(el.requestFullscreen?el.requestFullscreen():Promise.reject()).catch(()=>{el.classList.toggle('camgroot')});return}
  if(t.dataset.act==='camwake'){if(CAMW.wake){camWake(0)}else{CAMW.want=1;camWake(1)}return}
  if(t.dataset.act==='camreload'){S.cam=null;camWallStop();render();return}
