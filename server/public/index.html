@@ -327,14 +327,14 @@ function camLive(im,id){
  const tile=im.parentNode,st=tile.querySelector('.camst');let v=tile.querySelector('video');
  if(!v){v=document.createElement('video');v.muted=true;v.playsInline=true;v.autoplay=true;v.hidden=true;v.setAttribute('aria-label',im.alt);tile.insertBefore(v,im)}
  const T={hls:null,poll:0,mj:0,try:0,wd:0,to:0,last:-1,still:0,why:''};
- const lbl=(t,w)=>{if(st){st.textContent=t;st.title=w||''}};
+ const lbl=(t,w)=>{T.base=t;const vid=!v.hidden;if(st){st.textContent=t+(vid?' · video':' · beelden');st.title=w||''}tile.dataset.why=(vid?'video':'losse beelden')+(w?' – '+w:'');camWhy()};
  const stopHls=()=>{clearInterval(T.wd);clearTimeout(T.to);if(T.hls){try{T.hls.destroy()}catch(e){}T.hls=null}v.onplaying=null;v.removeAttribute('src');try{v.load()}catch(e){}v.hidden=true};
  const stopMj=()=>{clearInterval(T.poll);clearInterval(T.mj);im.onerror=null;im.src=''};
  const mjpeg=()=>{stopMj();im.hidden=false;lbl('Live',T.why);let snap=0;
   const go=()=>{snap=0;clearInterval(T.poll);im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`};
   im.onerror=()=>{if(snap)return;snap=1;lbl('Beeld per seconde',T.why);T.poll=setInterval(()=>{if(!CAMW.el){clearInterval(T.poll);return}const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000)};
   go();T.mj=setInterval(()=>{if(!document.hidden)go()},60e3)};   // elke minuut vers verbinden, zodat een hangend beeld niet blijft staan
- const later=(ms,why)=>{stopHls();T.why=why;if(im.hidden)mjpeg();else lbl(st?st.textContent:'Live',why);clearTimeout(T.try);T.try=setTimeout(hls,ms)};
+ const later=(ms,why)=>{stopHls();T.why=why;if(im.hidden)mjpeg();else lbl(T.base||'Live',why);clearTimeout(T.try);T.try=setTimeout(hls,ms)};
  const hls=async()=>{stopHls();
   try{const r=await fetch(`/api/camera/hls?e=${encodeURIComponent(id)}`);const j=await r.json().catch(()=>({}));if(!r.ok||!j.url)return later(300e3,'Video: '+(j.error||'geen stream'));
    const H=await hlsLib().catch(()=>null);if(!CAMW.el)return;
@@ -350,10 +350,11 @@ function camLive(im,id){
   }catch(e){later(300e3,'Video: geen verbinding')}};
  im._stop=()=>{clearTimeout(T.try);stopHls();stopMj()};
  mjpeg();hls()}
+function camWhy(){const e=document.getElementById('camwhy');if(!e||!CAMW.el)return;e.textContent='Status: '+[...CAMW.el.querySelectorAll('.camtile')].map(t=>(t.querySelector('.camlbl b')||{}).textContent+': '+(t.dataset.why||'…')).join(' | ')}
 function camWall(){const slot=document.getElementById('camslot');if(!slot||!S.cam||!S.cam.cams)return;const key=S.cam.cams.map(c=>c.id).join(',');
  if(!CAMW.el||CAMW.key!==key){camWallStop();const w=document.createElement('div');w.className='camwall';const n=S.cam.cams.length;const k=n<=1?1:n<=4?2:n<=9?3:4;w.style.setProperty('--k',k);w.style.setProperty('--r',Math.ceil(n/k));w.innerHTML=S.cam.cams.map(c=>`<button class="card camtile" data-act="camfs" aria-label="${esc(c.naam)} volledig scherm"><img alt="Live beeld ${esc(c.naam)}" data-e="${esc(c.id)}"><span class="camlbl"><b>${esc(c.naam)}</b> <span class="camst">Live</span></span></button>`).join('');
   w.querySelectorAll('img').forEach(im=>camLive(im,im.dataset.e));CAMW.el=w;CAMW.key=key}
- slot.replaceWith(CAMW.el)}
+ slot.replaceWith(CAMW.el);camWhy()}
 function camWallStop(){if(CAMW.el){CAMW.el.querySelectorAll('img').forEach(im=>im._stop&&im._stop());CAMW.el.remove()}CAMW.el=null;CAMW.key=''}
 async function camWake(on){try{if(on){CAMW.wake=await navigator.wakeLock.request('screen');CAMW.wake.addEventListener('release',()=>{if(CAMW.want&&!document.hidden)camWake(1)})}else if(CAMW.wake){CAMW.want=0;await CAMW.wake.release();CAMW.wake=null}}catch(e){CAMW.wake=null}if(S.view==='cameras')render()}
 document.addEventListener('fullscreenchange',()=>{if(CAMW.el&&!document.fullscreenElement){CAMW.el.classList.remove('solo');CAMW.el.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'))}});
@@ -654,7 +655,7 @@ cameras(){
  if(C.err)return top+`<div class="card"><div class="name">Geen beeld</div><div class="state">${esc(C.err)}</div></div>`;
  if(!C.cams.length)return top+`<div class="card"><div class="name">Nog geen camera gevonden in Home Assistant</div><div class="state">Het dashboard toont elke entiteit die met <b>camera.</b> begint. Kijk in Home Assistant bij Instellingen, Apparaten en diensten, Tuya, je camera: staat daar een entiteit “Camera” met beeld? Zo niet, dan geeft Tuya voor dit model geen beeld door aan Home Assistant.</div>${C.lijkt.length?`<div class="state" style="margin-top:10px">Wel gevonden, maar geen camerabeeld:</div><ul class="state">${C.lijkt.map(x=>`<li>${esc(x.naam)} <span style="opacity:.6">(${esc(x.id)})</span></li>`).join('')}</ul>`:''}</div>`;
  setTimeout(camWall,0);
- return top+'<div id="camslot"></div><p class="state" style="margin-top:10px">Live beeld blijft aan zolang deze pagina open staat. Tik op een beeld voor volledig scherm; in de schermvullende weergave tik je op een camera om alleen die te zien en nog eens om terug te gaan.</p>'},
+ return top+'<div id="camslot"></div><p class="state" style="margin-top:10px">Live beeld blijft aan zolang deze pagina open staat. Tik op een beeld voor volledig scherm; in de schermvullende weergave tik je op een camera om alleen die te zien en nog eens om terug te gaan.</p><p class="state" id="camwhy" style="font-size:.8rem;opacity:.7"></p>'},
 groepen(){
  if(S.role!=='owner')return '<h2>Groepen en scènes</h2><p class="state">Alleen eigenaren kunnen groepen en scènes beheren.</p>';
  const A=allLights();
