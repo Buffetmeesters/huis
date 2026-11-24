@@ -326,15 +326,33 @@ function camLive(im,id){
  // Eerst het MJPEG-beeld (werkt altijd), op de achtergrond video (HLS) proberen; pas als die echt speelt wordt er overgeschakeld.
  const tile=im.parentNode,st=tile.querySelector('.camst');let v=tile.querySelector('video');
  if(!v){v=document.createElement('video');v.muted=true;v.playsInline=true;v.autoplay=true;v.hidden=true;v.setAttribute('aria-label',im.alt);tile.insertBefore(v,im)}
- const T={hls:null,poll:0,mj:0,try:0,wd:0,to:0,last:-1,still:0,why:''};
+ const T={hls:null,pc:null,rid:'',ping:0,poll:0,mj:0,try:0,wd:0,to:0,last:-1,still:0,why:''};
  const lbl=(t,w)=>{T.base=t;const vid=!v.hidden;if(st){st.textContent=t+(vid?' · video':' · beelden');st.title=w||''}tile.dataset.why=(vid?'video':'losse beelden')+(w?' – '+w:'');camWhy()};
- const stopHls=()=>{clearInterval(T.wd);clearTimeout(T.to);if(T.hls){try{T.hls.destroy()}catch(e){}T.hls=null}v.onplaying=null;v.removeAttribute('src');try{v.load()}catch(e){}v.hidden=true};
+ const stopRtc=()=>{clearInterval(T.ping);if(T.pc){try{T.pc.close()}catch(e){}T.pc=null}if(T.rid){fetch('/api/camera/webrtc/stop',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:T.rid})}).catch(()=>{});T.rid=''}v.srcObject=null};
+ const stopHls=()=>{clearInterval(T.wd);clearTimeout(T.to);stopRtc();if(T.hls){try{T.hls.destroy()}catch(e){}T.hls=null}v.onplaying=null;v.removeAttribute('src');try{v.load()}catch(e){}v.hidden=true};
  const stopMj=()=>{clearInterval(T.poll);clearInterval(T.mj);im.onerror=null;im.src=''};
  const mjpeg=()=>{stopMj();im.hidden=false;lbl('Live',T.why);let snap=0;
   const go=()=>{snap=0;clearInterval(T.poll);im.src=`/api/camera/live?e=${encodeURIComponent(id)}&t=${Date.now()}`};
   im.onerror=()=>{if(snap)return;snap=1;lbl('Beeld per seconde',T.why);T.poll=setInterval(()=>{if(!CAMW.el){clearInterval(T.poll);return}const n=new Image();n.onload=()=>{im.src=n.src};n.src=camSrc(id)},1000)};
   go();T.mj=setInterval(()=>{if(!document.hidden)go()},60e3)};   // elke minuut vers verbinden, zodat een hangend beeld niet blijft staan
- const later=(ms,why)=>{stopHls();T.why=why;if(im.hidden)mjpeg();else lbl(T.base||'Live',why);clearTimeout(T.try);T.try=setTimeout(hls,ms)};
+ const later=(ms,why)=>{stopHls();T.why=why;if(im.hidden)mjpeg();else lbl(T.base||'Live',why);clearTimeout(T.try);T.try=setTimeout(webrtc,ms)};
+ const speelt=(soort)=>{v.onplaying=()=>{setTimeout(()=>{if(v.currentTime>0&&v.videoWidth>0){clearTimeout(T.to);stopMj();im.hidden=true;v.hidden=false;T.why=soort;lbl('Live',T.why)}},1500)};v.play().catch(()=>{});
+  T.last=-1;T.still=0;clearInterval(T.wd);T.wd=setInterval(()=>{if(document.hidden||!CAMW.el||v.hidden)return;if(v.currentTime===T.last){if(++T.still>=4)later(5e3,soort+' stond stil')}else{T.last=v.currentTime;T.still=0}},5000)};
+ const webrtc=async()=>{stopHls();T.mode='rtc';
+  try{if(!window.RTCPeerConnection)throw new Error('niet ondersteund');
+   const cr=await fetch(`/api/camera/webrtc/config?e=${encodeURIComponent(id)}`);const cj=await cr.json().catch(()=>({}));if(!cr.ok)throw new Error(cj.error||'geen config');if(!CAMW.el)return;
+   const pc=new RTCPeerConnection(cj.config||{});T.pc=pc;pc.addTransceiver('video',{direction:'recvonly'});pc.addTransceiver('audio',{direction:'recvonly'});
+   const mijn=[];pc.onicecandidate=e=>{if(e.candidate)mijn.push(e.candidate.toJSON())};
+   pc.ontrack=e=>{if(e.track.kind==='video'){v.srcObject=e.streams[0]||new MediaStream([e.track]);speelt('Video (WebRTC)')}};
+   pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed'&&T.pc===pc)hls()};
+   await pc.setLocalDescription(await pc.createOffer());
+   await new Promise(ok=>{if(pc.iceGatheringState==='complete')return ok();const t=setTimeout(ok,2500);pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete'){clearTimeout(t);ok()}})});
+   const r=await fetch('/api/camera/webrtc',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({e:id,offer:pc.localDescription.sdp})});const j=await r.json().catch(()=>({}));
+   if(!r.ok||!j.answer)throw new Error(j.error||'geen antwoord');if(T.pc!==pc){fetch('/api/camera/webrtc/stop',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:j.id})}).catch(()=>{});return}
+   T.rid=j.id;await pc.setRemoteDescription({type:'answer',sdp:j.answer});for(const c of j.cands||[])await pc.addIceCandidate(c).catch(()=>{});
+   T.ping=setInterval(async()=>{if(!T.rid)return;const nu=mijn.splice(0);try{const q=await fetch('/api/camera/webrtc/ping',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:T.rid,cands:nu})});if(q.status===404){if(T.pc===pc)later(5e3,'WebRTC-sessie verlopen');return}const qj=await q.json();for(const c of qj.cands||[])await pc.addIceCandidate(c).catch(()=>{})}catch(e){}},5000);
+   T.to=setTimeout(()=>{if(v.hidden&&T.pc===pc){T.why='WebRTC start niet';hls()}},20e3);
+  }catch(e){T.why='WebRTC: '+(e.message||e);hls()}};
  const hls=async()=>{stopHls();
   try{const r=await fetch(`/api/camera/hls?e=${encodeURIComponent(id)}`);const j=await r.json().catch(()=>({}));if(!r.ok||!j.url)return later(300e3,'Video: '+(j.error||'geen stream'));
    const H=await hlsLib().catch(()=>null);if(!CAMW.el)return;
@@ -343,13 +361,11 @@ function camLive(im,id){
     T.hls.on(H.Events.ERROR,(e,d)=>{if(d&&d.fatal)later(120e3,'Video-fout: '+(d.details||d.type))});
     T.hls.loadSource(j.url);T.hls.attachMedia(v)}
    else if(v.canPlayType('application/vnd.apple.mpegurl'))v.src=j.url;else return later(3600e3,'Video wordt niet ondersteund in deze browser');
-   v.play().catch(()=>{});
-   v.onplaying=()=>{setTimeout(()=>{if(!T.hls&&!v.src)return;if(v.currentTime>0&&v.videoWidth>0){clearTimeout(T.to);stopMj();im.hidden=true;v.hidden=false;lbl('Live',T.why)}},1500)};
+   speelt('Video (HLS)');
    T.to=setTimeout(()=>{if(v.hidden)later(300e3,(T.why||'Video')+': start niet binnen 60 s')},60e3);
-   T.last=-1;T.still=0;T.wd=setInterval(()=>{if(document.hidden||!CAMW.el||v.hidden)return;if(v.currentTime===T.last){if(++T.still>=4)later(5e3,'Video stond stil')}else{T.last=v.currentTime;T.still=0}},5000);
   }catch(e){later(300e3,'Video: geen verbinding')}};
  im._stop=()=>{clearTimeout(T.try);stopHls();stopMj()};
- mjpeg();hls()}
+ mjpeg();webrtc()}
 function camWhy(){const e=document.getElementById('camwhy');if(!e||!CAMW.el)return;e.textContent='Status: '+[...CAMW.el.querySelectorAll('.camtile')].map(t=>(t.querySelector('.camlbl b')||{}).textContent+': '+(t.dataset.why||'…')).join(' | ')}
 function camWall(){const slot=document.getElementById('camslot');if(!slot||!S.cam||!S.cam.cams)return;const key=S.cam.cams.map(c=>c.id).join(',');
  if(!CAMW.el||CAMW.key!==key){camWallStop();const w=document.createElement('div');w.className='camwall';const n=S.cam.cams.length;const k=n<=1?1:n<=4?2:n<=9?3:4;w.style.setProperty('--k',k);w.style.setProperty('--r',Math.ceil(n/k));w.innerHTML=S.cam.cams.map(c=>`<button class="card camtile" data-act="camfs" aria-label="${esc(c.naam)} volledig scherm"><img alt="Live beeld ${esc(c.naam)}" data-e="${esc(c.id)}"><span class="camlbl"><b>${esc(c.naam)}</b> <span class="camst">Live</span></span></button>`).join('');

@@ -484,6 +484,44 @@ async function haCall(cfg, path, payload) {
   if (!r.ok) { let t = ''; try { t = (await r.text()).slice(0, 200); } catch {} throw new Error('Home Assistant antwoordde met ' + r.status + (t ? ': ' + t : '')); }
   return r.json();
 }
+// ---- WebRTC-signalering via de websocket van Home Assistant (camera's) ----
+const rtc = new Map();
+function haWs(cfg) {
+  return new Promise((ok, nok) => {
+    const ws = new WebSocket(cfg.url.replace(/^http/, 'ws') + '/api/websocket'); let n = 0; const wait = new Map(); const subs = new Map();
+    const t = setTimeout(() => { try { ws.close(); } catch {} nok(new Error('te traag')); }, 15000);
+    const api = { ws, send: m => { const id = ++n; ws.send(JSON.stringify({ id, ...m })); return id; }, call: m => new Promise((a, z) => { const id = api.send(m); wait.set(id, [a, z]); setTimeout(() => { if (wait.delete(id)) z(new Error('geen antwoord')); }, 10000); }), sub: (m, f) => { const id = api.send(m); subs.set(id, f); return id; }, close: () => { try { ws.close(); } catch {} } };
+    ws.onerror = () => { clearTimeout(t); nok(new Error('geen verbinding')); };
+    ws.onclose = () => { for (const f of subs.values()) f({ type: 'gesloten' }); };
+    ws.onmessage = m => {
+      let d; try { d = JSON.parse(m.data); } catch { return; }
+      if (d.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: cfg.token }));
+      else if (d.type === 'auth_ok') { clearTimeout(t); ok(api); }
+      else if (d.type === 'auth_invalid') { clearTimeout(t); nok(new Error('token ongeldig')); }
+      else if (d.type === 'result' && wait.has(d.id)) { const [a, z] = wait.get(d.id); wait.delete(d.id); d.success ? a(d.result) : z(new Error((d.error && d.error.message) || 'fout')); }
+      else if (d.type === 'result' && subs.has(d.id) && !d.success) subs.get(d.id)({ type: 'error', message: (d.error && d.error.message) || 'fout' });
+      else if (d.type === 'event' && subs.has(d.id)) subs.get(d.id)(d.event || {});
+    };
+  });
+}
+async function haWsOnce(cfg, m) { const a = await haWs(cfg); try { return await a.call(m); } finally { a.close(); } }
+async function rtcStart(cfg, ent, offer, owner) {
+  const a = await haWs(cfg);
+  const x = { id: crypto.randomBytes(12).toString('hex'), ent, owner, last: Date.now(), cands: [], sid: '', answer: '', dicht: '', send: m => { try { a.send(m); } catch {} }, a };
+  rtc.set(x.id, x);
+  await new Promise((ok, nok) => {
+    const t = setTimeout(() => nok(new Error('geen antwoord van de camera')), 20000);
+    a.sub({ type: 'camera/webrtc/offer', entity_id: ent, offer }, ev => {
+      if (ev.type === 'session') x.sid = ev.session_id;
+      else if (ev.type === 'answer') { x.answer = ev.answer; clearTimeout(t); setTimeout(ok, 1500); }   // even wachten op de eerste kandidaten
+      else if (ev.type === 'candidate' && ev.candidate) x.cands.push(ev.candidate);
+      else if (ev.type === 'error' || ev.type === 'gesloten') { x.dicht = ev.message || ev.type; clearTimeout(t); if (!x.answer) nok(new Error(ev.message || 'gesloten')); }
+    });
+  }).catch(e => { rtcClose(x.id); throw e; });
+  return x;
+}
+function rtcClose(id) { const x = rtc.get(id); if (!x) return; rtc.delete(id); x.a.close(); }
+setInterval(() => { for (const [id, x] of rtc) if (Date.now() - x.last > 60000) rtcClose(id); }, 15000);
 function cookie(req) {
   const m = (req.headers.cookie || '').match(/(?:^|;\s*)sid=([a-f0-9]{64})/);
   return m ? m[1] : null;
@@ -685,6 +723,30 @@ http.createServer(async (req, res) => {
           const lijkt = cams.length ? [] : all.filter(e => !e.entity_id.startsWith('camera.') && /cam|camera|ipc|beveilig/i.test(e.entity_id + ' ' + (e.attributes.friendly_name || ''))).slice(0, 15).map(e => ({ id: e.entity_id, naam: e.attributes.friendly_name || e.entity_id }));
           return json(res, 200, { cams, lijkt });
         } catch (e) { return json(res, 502, { error: haErr(e) }); }
+      }
+      if (p.startsWith('/api/camera/webrtc')) {
+        // WebRTC zoals Home Assistant zelf (go2rtc): het dashboard geeft alleen de signalering door; het beeld gaat rechtstreeks naar de browser.
+        // De websocket naar HA blijft open zolang de browser pingt, anders sluit HA de sessie.
+        const b = req.method === 'POST' ? await body(req).then(t => JSON.parse(t || '{}')).catch(() => ({})) : {};
+        if (p === '/api/camera/webrtc/ping' || p === '/api/camera/webrtc/stop') {
+          const x = rtc.get(String(b.id || ''));
+          if (!x || x.owner !== s.ref) return json(res, 404, { error: 'Sessie verlopen' });
+          if (p.endsWith('/stop')) { rtcClose(b.id); return json(res, 200, { ok: true }); }
+          x.last = Date.now(); const c = x.cands.splice(0); if (Array.isArray(b.cands)) for (const k of b.cands.slice(0, 40)) x.send({ type: 'camera/webrtc/candidate', entity_id: x.ent, session_id: x.sid, candidate: k });
+          return json(res, 200, { cands: c, dicht: x.dicht || '' });
+        }
+        if (!/^camera\.[a-z0-9_]+$/.test(String(b.e || url.searchParams.get('e') || ''))) return json(res, 400, { error: 'Onbekende camera' });
+        const e2 = String(b.e || url.searchParams.get('e'));
+        try {
+          if (p === '/api/camera/webrtc/config') {
+            const r = await haWsOnce(cfg, { type: 'camera/webrtc/get_client_config', entity_id: e2 });
+            return json(res, 200, { config: (r && r.configuration) || {} });
+          }
+          if (p !== '/api/camera/webrtc' || typeof b.offer !== 'string' || b.offer.length > 20000) return json(res, 400, { error: 'Onbekend' });
+          if (rtc.size > 20) return json(res, 429, { error: 'Te veel streams tegelijk' });
+          const x = await rtcStart(cfg, e2, b.offer, s.ref);
+          return json(res, 200, { id: x.id, answer: x.answer, cands: x.cands.splice(0) });
+        } catch (e) { return json(res, 502, { error: 'Geen WebRTC: ' + e.message }); }
       }
       if (p.startsWith('/api/camera/hlsp/')) {
         // HLS-stream van Home Assistant doorgeven (playlist en stukjes video); het token zit in het pad, alleen eigenaren komen hier.
