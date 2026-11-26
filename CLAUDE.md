@@ -79,3 +79,7 @@ Joshua wil al zijn eigen domeinen uit de hostingpakketten halen en zelf hosten (
 
 ## Jolofix-beheer (21 november)
 - Pagina `/jolofix` (`server/public/jolofix.html`) alleen voor Joshua en Lorenzo (eigenaren, niet Admin-account, niet gasten): knoppen naar alle beheerpagina's van Jolo Fix en live status (route `/api/jolofix/status`, lijst `JF_CHECK` in server.js, cache 60 s). Knop "Jolo Fix" in de kop van het dashboard.
+
+## Verhuizing (26 november)
+- Pagina `/verhuizing` (`server/public/verhuizing.html`) alleen voor Joshua en Lorenzo (eigenaren, niet Admin-account, niet gasten), knop "Verhuizing" in de kop naast "Jolo Fix". Takenlijst per kamer/groep (startlijst `VERHUIS_START` in server.js, daarna alles in kv `verhuis`): afvinken (met wie en wanneer), wie doet het (Joshua/Lorenzo/Samen), taken en groepen toevoegen, verwijderen, filters Nog te doen/Alles/Mijn taken/Klaar, voortgangsbalk; ververst elke 20 s. Routes `/api/verhuis` (GET) en `/api/verhuis/klaar|wie|tekst|weg|nieuw` (POST). Na de verhuizing mag de knop weg.
+

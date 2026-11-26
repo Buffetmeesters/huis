@@ -10,6 +10,63 @@ const PORT = process.env.PORT || 8080;
 const DATA = process.env.DATA_DIR || '/data';
 const OWNERS = ['Joshua', 'Lorenzo'];
 // Jolofix-beheer (/jolofix): adressen waarvan de status live wordt getoond
+// Verhuizing (/verhuizing): startlijst [kamer, taak, wie]; daarna bewerkbaar op de pagina (kv 'verhuis').
+const VERHUIS_START = [
+  ['Regelen', 'Verhuisdozen, tape, markers, bubbeltjesplastic en vuilniszakken halen'],
+  ['Regelen', 'Bus of aanhanger regelen en helpers vragen voor de verhuisdag'],
+  ['Regelen', 'Opvang of plan voor Jolo op de verhuisdag'],
+  ['Regelen', 'Vervoer voor Coco en Mango regelen (kooi of reisbox)'],
+  ['Regelen', 'Inschrijven bij de gemeente Boxtel (adreswijziging)'],
+  ['Regelen', 'Nieuw adres doorgeven: bank, verzekeringen, zorgverzekeraar, abonnementen'],
+  ['Regelen', 'Doorstuurservice post aanvragen (PostNL)'],
+  ['Regelen', 'Chip van Jolo: adres wijzigen in de databank'],
+  ['Regelen', 'Energie, water en internet oude adres opzeggen / overzetten'],
+  ['Regelen', 'Afspraak oplevering en sleuteloverdracht oude woning'],
+  ['Woonkamer', 'Lampen van het plafond halen en peertjes (kale fitting) terughangen'],
+  ['Woonkamer', 'Schilderijen en klokken van de muur halen'],
+  ['Woonkamer', 'Gaten in de muur dichtsmeren'],
+  ['Woonkamer', 'Tv en kabels inpakken (eerst foto van de aansluitingen)'],
+  ['Woonkamer', 'Boeken, decoratie en kastjes inpakken'],
+  ['Woonkamer', 'Gordijnen en rails eraf (als ze mee gaan)'],
+  ['Keuken', 'Glaswerk apart inpakken in papier, doos "BREEKBAAR"'],
+  ['Keuken', 'Servies inpakken'],
+  ['Keuken', 'Pannen, bestek en keukenspullen inpakken'],
+  ['Keuken', 'Voorraadkast opmaken of inpakken'],
+  ['Keuken', 'Koelkast leegmaken, uitzetten en laten ontdooien'],
+  ['Keuken', 'Koelkast afsluiten en andere koelkast plaatsen'],
+  ['Keuken', 'Vriezer leegmaken en ontdooien'],
+  ['Keuken', 'Keukenkastjes, oven en magnetron schoonmaken'],
+  ['Slaapkamer', 'Kledingkast uit elkaar (schroeven in een zakje, vastplakken aan een onderdeel)'],
+  ['Slaapkamer', 'Kleren in koffers'],
+  ['Slaapkamer', 'Was vouwen en in koffers'],
+  ['Slaapkamer', 'Bed uit elkaar en beddengoed inpakken'],
+  ['Slaapkamer', 'Lampen eraf, peertjes terug; schilderijen eraf en gaten dicht'],
+  ['Badkamer', 'Toiletspullen inpakken (wat je de eerste dagen nodig hebt apart)'],
+  ['Badkamer', 'Handdoeken en badmatten inpakken'],
+  ['Badkamer', 'Spiegel, haakjes en rekjes eraf en gaten dichtsmeren'],
+  ['Wc', 'Spullen uit de wc inpakken (wc-papier, schoonmaakmiddel)'],
+  ['Wc', 'Haakjes en rekjes eraf, gaten dicht, wc schoonmaken'],
+  ['Berghok', 'Gereedschap inpakken'],
+  ['Berghok', 'Uitzoeken wat weg mag (milieustraat of Marktplaats)'],
+  ['Berghok', 'Tuinspullen, fietsen en grote spullen klaarzetten'],
+  ['Cv-hok', 'Spullen uit het cv-hok halen en inpakken'],
+  ['Cv-hok', 'Meterstanden (gas, stroom, water) noteren met foto'],
+  ['Techniek', 'Servers netjes afsluiten (VM\'s eerst) en inpakken'],
+  ['Techniek', 'Router, Hue Bridge, speakers en tablets inpakken (kabels bij elkaar)'],
+  ['Techniek', 'Camera\'s en slimme stekkers losmaken'],
+  ['Verhuisdag', 'Doos "eerste nacht": beddengoed, toiletspullen, opladers, koffie, wc-papier'],
+  ['Verhuisdag', 'Voer en spullen voor Jolo, Coco en Mango apart houden'],
+  ['Verhuisdag', 'Elke doos labelen met kamer van het nieuwe huis'],
+  ['Opleveren', 'Hele woning leeg en bezemschoon'],
+  ['Opleveren', 'Muren, vloeren en ramen schoonmaken'],
+  ['Opleveren', 'Foto\'s maken van de lege woning'],
+  ['Opleveren', 'Sleutels inleveren'],
+  ['Nieuwe huis', 'Koelkast plaatsen en aanzetten'],
+  ['Nieuwe huis', 'Bedden in elkaar zetten'],
+  ['Nieuwe huis', 'Lampen ophangen'],
+  ['Nieuwe huis', 'Servers, internet en Home Assistant weer aansluiten'],
+  ['Nieuwe huis', 'Naambordje en brievenbus regelen'],
+];
 const JF_CHECK = ['https://www.jolofix.nl/', 'https://hosting.jolofix.nl/', 'https://mijn.jolofix.nl/', 'https://huren.jolofix.nl/huren.php', 'https://klusbon.jolofix.nl/index.php?p=login', 'https://koelwacht.jolofix.nl/index.php?p=login', 'https://boekmoment.jolofix.nl/boek.php', 'https://radio.jolofix.nl/', 'https://cloud.jolofix.nl/status.php', 'https://games.jolofix.nl/auth/login', 'https://webmail.jolofix.nl/', 'https://paneel.jolofix.nl/login/', 'https://status.jolofix.nl/status/jolofix', 'https://boekhouding.huizecpvh.nl/'];
 let jfCache = null;
 const ADMIN = 'Admin';
@@ -807,6 +864,25 @@ http.createServer(async (req, res) => {
       const d = { t: Date.now(), r: await Promise.all(JF_CHECK.map(chk)) };
       jfCache = { t: Date.now(), d };
       return json(res, 200, d);
+    }
+    if (p.startsWith('/api/verhuis')) {
+      // Verhuizing: takenlijst voor Joshua en Lorenzo (niet Admin, niet gasten).
+      const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
+      const laad = () => { let v = kvGet('verhuis'); if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', klaar: 0, door: '', op: 0 })) }; kvPut('verhuis', v); } return v; };
+      if (req.method === 'GET') return json(res, 200, laad());
+      if (req.method !== 'POST') return json(res, 405, { error: 'Niet toegestaan' });
+      const b = JSON.parse(await body(req) || '{}'), v = laad(), t = v.taken.find(x => x.id === String(b.id || ''));
+      const WIE = ['', 'Joshua', 'Lorenzo', 'Samen'];
+      if (p === '/api/verhuis/klaar') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); t.klaar = b.klaar ? 1 : 0; t.door = t.klaar ? s.ref : ''; t.op = t.klaar ? Date.now() : 0; }
+      else if (p === '/api/verhuis/wie') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); t.w = WIE.includes(b.w) ? b.w : ''; }
+      else if (p === '/api/verhuis/tekst') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); const x = String(b.t || '').trim().slice(0, 200); if (!x) return json(res, 400, { error: 'Leeg' }); t.t = x; }
+      else if (p === '/api/verhuis/weg') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); v.taken = v.taken.filter(x => x !== t); }
+      else if (p === '/api/verhuis/nieuw') {
+        const x = String(b.t || '').trim().slice(0, 200), k = String(b.k || '').trim().slice(0, 60);
+        if (!x || !k) return json(res, 400, { error: 'Vul een taak in.' });
+        v.taken.push({ id: 'n' + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), k, t: x, w: WIE.includes(b.w) ? b.w : '', klaar: 0, door: '', op: 0, van: s.ref });
+      } else return json(res, 404, { error: 'Onbekend' });
+      kvPut('verhuis', v); return json(res, 200, v);
     }
     if (p.startsWith('/api/boek')) {
       // Huishoudboekje: alleen Joshua en Lorenzo (niet Admin, niet gasten).
@@ -1628,6 +1704,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/privacy') return file(res, 'privacy.html', 'text/html; charset=utf-8');
     if (p === '/privacy2') return file(res, 'privacy2.html', 'text/html; charset=utf-8');
+    if (p === '/verhuizing') { const s = session(req); if (s && s.role === 'owner' && OWNERS.includes(s.ref)) return file(res, 'verhuizing.html', 'text/html; charset=utf-8'); }
     if (p === '/jolofix') { const s = session(req); if (s && s.role === 'owner' && OWNERS.includes(s.ref)) return file(res, 'jolofix.html', 'text/html; charset=utf-8'); }
     if (p === '/admin') {
       const s = session(req);

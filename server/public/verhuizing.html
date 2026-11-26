@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#1b2748">
+<title>Verhuizing – Huis</title>
+<style>
+:root{--bg:#f2f4f8;--kaart:#fff;--ink:#141c2e;--mute:#5e6a80;--lijn:#d9dfe8;--acc:#1b2748;--ok:#1a7f4b;--okz:#e3f3ea;--geel:#f2b531;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1220;--kaart:#161e30;--ink:#e9edf5;--mute:#9aa6bb;--lijn:#26314a;--acc:#9fb4e8;--ok:#3fbf7f;--okz:#13301f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#1b2748;color:#fff;padding:16px 18px 18px}
+header .b{max-width:860px;margin:0 auto}
+.rij{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:1.35rem}
+header a{color:#fff;margin-left:auto;font-size:.9rem}
+.sub{color:#c9d3ea;font-size:.92rem;margin-top:2px}
+.voortgang{margin-top:14px;background:rgba(255,255,255,.18);border-radius:99px;height:12px;overflow:hidden}
+.voortgang i{display:block;height:100%;width:0;background:var(--geel);border-radius:99px;transition:width .3s}
+.telling{margin-top:6px;font-size:.92rem;color:#e6ebf7}
+main{max-width:860px;margin:0 auto;padding:14px 14px 90px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}
+.filters button{font:inherit;font-size:.9rem;border:1px solid var(--lijn);background:var(--kaart);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
+.filters button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+section{background:var(--kaart);border:1px solid var(--lijn);border-radius:14px;margin:0 0 12px;overflow:hidden}
+section h2{margin:0;font-size:1.02rem;padding:11px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--lijn)}
+section h2 small{margin-left:auto;font-weight:500;color:var(--mute);font-size:.85rem}
+section.af h2{color:var(--ok)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;align-items:flex-start;gap:10px;padding:9px 14px;border-top:1px solid var(--lijn)}
+li:first-child{border-top:0}
+li input[type=checkbox]{width:24px;height:24px;margin:1px 0 0;flex:none;accent-color:var(--ok);cursor:pointer}
+.tekst{flex:1;min-width:0}
+.tekst span{display:block;word-wrap:break-word}
+li.klaar .tekst span{text-decoration:line-through;color:var(--mute)}
+li.klaar{background:var(--okz)}
+.meta{font-size:.8rem;color:var(--mute);margin-top:1px}
+.wie{font:inherit;font-size:.8rem;border:1px solid var(--lijn);border-radius:99px;padding:3px 9px;background:transparent;color:var(--mute);cursor:pointer;flex:none;white-space:nowrap}
+.wie.J{border-color:#4a7bd0;color:#4a7bd0}.wie.L{border-color:#b0569b;color:#b0569b}.wie.S{border-color:var(--ok);color:var(--ok)}
+.weg{font:inherit;border:0;background:none;color:var(--mute);cursor:pointer;font-size:1.1rem;line-height:1;padding:2px 4px;flex:none}
+.weg:hover{color:#c0392b}
+.nieuw{display:flex;gap:8px;padding:9px 14px;border-top:1px solid var(--lijn)}
+.nieuw input{flex:1;min-width:0;font:inherit;font-size:.95rem;padding:7px 10px;border:1px solid var(--lijn);border-radius:9px;background:var(--bg);color:var(--ink)}
+.nieuw button,.kamerknop{font:inherit;font-size:.9rem;border:0;border-radius:9px;padding:7px 12px;background:var(--acc);color:var(--bg);cursor:pointer}
+.kamer{display:flex;gap:8px;margin-top:6px}
+.kamer input{flex:1;font:inherit;padding:9px 12px;border:1px solid var(--lijn);border-radius:10px;background:var(--kaart);color:var(--ink)}
+.leeg{color:var(--mute);padding:14px}
+.fout{background:#fdecea;color:#8a1c1c;border-radius:10px;padding:10px 14px;margin-bottom:10px;display:none}
+button:focus-visible,input:focus-visible{outline:3px solid var(--geel);outline-offset:2px}
+</style>
+</head>
+<body>
+<header><div class="b">
+  <div class="rij"><h1>Verhuizing</h1><a href="/">Terug naar Huis</a></div>
+  <div class="sub">Naar Frans Staelstraat 29, Boxtel · alleen voor Joshua en Lorenzo</div>
+  <div class="voortgang" aria-hidden="true"><i id="balk"></i></div>
+  <div class="telling" id="telling">Laden…</div>
+</div></header>
+<main>
+  <div class="fout" id="fout"></div>
+  <div class="filters" role="group" aria-label="Filter">
+    <button data-f="open" aria-pressed="true">Nog te doen</button>
+    <button data-f="alles" aria-pressed="false">Alles</button>
+    <button data-f="mij" aria-pressed="false">Mijn taken</button>
+    <button data-f="klaar" aria-pressed="false">Klaar</button>
+  </div>
+  <div id="lijst"></div>
+  <form class="kamer" id="kamerform">
+    <input id="kamernaam" placeholder="Nieuwe kamer of groep (bijv. Zolder)" maxlength="60" aria-label="Nieuwe kamer of groep">
+    <button class="kamerknop">Toevoegen</button>
+  </form>
+</main>
+<script>
+const WIE=['','Joshua','Lorenzo','Samen'], KORT={Joshua:'J',Lorenzo:'L',Samen:'S'};
+let D={taken:[]}, ik='', filter='open', extraKamers=[], bezig=false;
+const $=s=>document.querySelector(s), esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fout(t){const f=$('#fout');f.textContent=t||'';f.style.display=t?'block':'none'}
+async function api(pad,b){
+  bezig=true;
+  try{const r=await fetch('/api/verhuis'+pad,b?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)}:{});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||'Mislukt');D=d;fout('');teken();}
+  catch(e){fout(e.message==='Alleen Joshua en Lorenzo'?'Deze pagina is alleen voor Joshua en Lorenzo.':'Opslaan of laden lukte niet: '+e.message)}
+  finally{bezig=false}
+}
+function tijd(ms){const d=new Date(ms);return d.toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'short'})+' '+d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}
+function teken(){
+  const t=D.taken, k=t.filter(x=>x.klaar).length, pct=t.length?Math.round(k/t.length*100):0;
+  $('#balk').style.width=pct+'%';
+  $('#telling').textContent=k+' van '+t.length+' klaar ('+pct+'%)'+(t.length-k?' · nog '+(t.length-k)+' te doen':' · alles klaar!');
+  const kamers=[...new Set(t.map(x=>x.k).concat(extraKamers))];
+  const zie=x=>filter==='alles'||(filter==='open'&&!x.klaar)||(filter==='klaar'&&x.klaar)||(filter==='mij'&&!x.klaar&&(x.w===ik||x.w==='Samen'||!x.w));
+  let h='';
+  for(const km of kamers){
+    const alle=t.filter(x=>x.k===km), rij=alle.filter(zie), af=alle.length&&alle.every(x=>x.klaar);
+    if(!rij.length&&filter!=='alles'&&!extraKamers.includes(km))continue;
+    h+='<section class="'+(af?'af':'')+'"><h2>'+(af?'✓ ':'')+esc(km)+'<small>'+alle.filter(x=>x.klaar).length+'/'+alle.length+'</small></h2><ul>';
+    for(const x of rij){
+      h+='<li class="'+(x.klaar?'klaar':'')+'"><input type="checkbox" data-id="'+x.id+'" '+(x.klaar?'checked':'')+' aria-label="Klaar: '+esc(x.t)+'">'
+        +'<div class="tekst"><span>'+esc(x.t)+'</span>'+(x.klaar&&x.door?'<div class="meta">Gedaan door '+esc(x.door)+' · '+tijd(x.op)+'</div>':'')+'</div>'
+        +'<button class="wie '+(KORT[x.w]||'')+'" data-wie="'+x.id+'" title="Wie doet het? (tik om te wisselen)">'+(x.w||'Wie?')+'</button>'
+        +'<button class="weg" data-weg="'+x.id+'" aria-label="Verwijderen" title="Verwijderen">×</button></li>';
+    }
+    h+='</ul><form class="nieuw" data-k="'+esc(km)+'"><input placeholder="Taak toevoegen…" maxlength="200" aria-label="Taak toevoegen bij '+esc(km)+'"><button>+</button></form></section>';
+  }
+  $('#lijst').innerHTML=h||'<p class="leeg">'+(filter==='klaar'?'Nog niets afgevinkt.':'Niets meer te doen in deze weergave. 🎉')+'</p>';
+}
+document.addEventListener('change',e=>{const id=e.target.dataset&&e.target.dataset.id;if(id)api('/klaar',{id,klaar:e.target.checked})});
+document.addEventListener('click',e=>{
+  const w=e.target.closest('[data-wie]');if(w){const x=D.taken.find(t=>t.id===w.dataset.wie);api('/wie',{id:x.id,w:WIE[(WIE.indexOf(x.w||'')+1)%WIE.length]});return}
+  const g=e.target.closest('[data-weg]');if(g){const x=D.taken.find(t=>t.id===g.dataset.weg);if(confirm('Taak verwijderen?\n\n'+x.t))api('/weg',{id:x.id})}
+  const f=e.target.closest('.filters button');if(f){filter=f.dataset.f;document.querySelectorAll('.filters button').forEach(b=>b.setAttribute('aria-pressed',b===f));teken()}
+});
+document.addEventListener('submit',e=>{
+  e.preventDefault();
+  if(e.target.id==='kamerform'){const v=$('#kamernaam').value.trim();if(v&&!extraKamers.includes(v)){extraKamers.push(v);$('#kamernaam').value='';teken()}return}
+  const k=e.target.dataset.k,i=e.target.querySelector('input'),v=i.value.trim();if(!v)return;
+  extraKamers=extraKamers.filter(x=>x!==k);api('/nieuw',{k,t:v});
+});
+fetch('/api/me').then(r=>r.ok?r.json():{}).then(m=>{ik=m.name||(m.me&&m.me.name)||''}).catch(()=>{});
+api('');
+setInterval(()=>{if(!bezig&&!document.querySelector('.nieuw input:focus,#kamernaam:focus')&&!document.hidden)api('')},20000);
+</script>
+</body>
+</html>
