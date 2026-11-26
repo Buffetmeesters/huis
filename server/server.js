@@ -16,7 +16,12 @@ const OWNERS = ['Joshua', 'Lorenzo'];
 const VERHUIS_DAGEN = ['2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02', 'na'];
 const VERHUIS_START = [
   ['Regelen', 'Verhuisdozen, tape, markers, bubbeltjesplastic en vuilniszakken halen', '', '2026-11-27'],
-  ['Regelen', 'Helpers vragen voor dinsdag 1 december (10:30–15:00)', '', '2026-11-27'],
+  ['Regelen', 'Helpers dinsdag bevestigen en tijden en adressen doorgeven (Judite, Alex, Sabine, Robin, Anja, Arnold, Richard, Samantha)', '', '2026-11-27'],
+  ['Regelen', 'Slaapplek voor vader klaarmaken (komt ma 18:00, blijft slapen)', '', '2026-11-30'],
+  ['Regelen', 'Avondeten maandag (4 personen, met vader)', '', '2026-11-30'],
+  ['Regelen', 'Boodschappen voor dinsdag: koffie, thee, frisdrank, water en lunch voor ±12 personen', '', '2026-11-30'],
+  ['Verhuisdag', 'Ploegen maken: lossen in het nieuwe huis en schoonmaken op Stapelen 76', 'Samen', '2026-12-01'],
+  ['Verhuisdag', 'Lunch voor iedereen (rond 12:30)', '', '2026-12-01'],
   ['Aanhanger', 'Aanhanger ophalen bij Masta Verhuur in Sint-Oedenrode (vanaf 08:00)', '', '2026-11-30'],
   ['Aanhanger', 'Aanhanger zo vol mogelijk laden: alle dozen, kasten en grote spullen (alleen bed en eerste-nacht-spullen blijven)', 'Samen', '2026-11-30'],
   ['Aanhanger', 'Aanhanger \'s nachts veilig parkeren en afsluiten (slot, geen waardevolle spullen erin)', '', '2026-11-30'],
@@ -881,7 +886,7 @@ http.createServer(async (req, res) => {
       const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
       const laad = () => {
         let v = kvGet('verhuis');
-        if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w, d], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', d: d || '', klaar: 0, door: '', op: 0 })), dagen: 3 }; kvPut('verhuis', v); }
+        if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w, d], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', d: d || '', klaar: 0, door: '', op: 0 })), dagen: 4 }; kvPut('verhuis', v); }
         else if (!v.dagen) {
           // Oude lijst zonder dagen: dag invullen op taaknaam (begin van de tekst), nieuwe startitems toevoegen.
           const sleutel = x => x.toLowerCase().slice(0, 22);
@@ -911,12 +916,19 @@ http.createServer(async (req, res) => {
           VERHUIS_START.filter(r => r[0] === 'Aanhanger').forEach(([k, t, w, d], i) => { if (!v.taken.some(x => x.t === t)) v.taken.push({ id: 'b' + i, k, t, w: w || '', d, klaar: 0, door: '', op: 0 }); });
           v.dagen = 3; kvPut('verhuis', v);
         }
+        if (v.dagen === 3) {
+          // Versie 4: helpers (Dennis altijd, vader ma 18:00, 8 helpers op dinsdag).
+          for (const x of v.taken) if (x.t.startsWith('Helpers vragen voor dinsdag')) x.t = 'Helpers dinsdag bevestigen en tijden en adressen doorgeven (Judite, Alex, Sabine, Robin, Anja, Arnold, Richard, Samantha)';
+          const nieuw = ['Slaapplek voor vader', 'Avondeten maandag', 'Boodschappen voor dinsdag', 'Ploegen maken', 'Lunch voor iedereen'];
+          VERHUIS_START.forEach(([k, t, w, d], i) => { if (nieuw.some(n => t.startsWith(n)) && !v.taken.some(x => x.t === t)) v.taken.push({ id: 'c' + i, k, t, w: w || '', d, klaar: 0, door: '', op: 0 }); });
+          v.dagen = 4; kvPut('verhuis', v);
+        }
         return v;
       };
       if (req.method === 'GET') return json(res, 200, laad());
       if (req.method !== 'POST') return json(res, 405, { error: 'Niet toegestaan' });
       const b = JSON.parse(await body(req) || '{}'), v = laad(), t = v.taken.find(x => x.id === String(b.id || ''));
-      const WIE = ['', 'Joshua', 'Lorenzo', 'Samen'];
+      const WIE = ['', 'Joshua', 'Lorenzo', 'Dennis', 'Samen', 'Iedereen'];
       if (p === '/api/verhuis/klaar') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); t.klaar = b.klaar ? 1 : 0; t.door = t.klaar ? s.ref : ''; t.op = t.klaar ? Date.now() : 0; }
       else if (p === '/api/verhuis/wie') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); t.w = WIE.includes(b.w) ? b.w : ''; }
       else if (p === '/api/verhuis/dag') { if (!t) return json(res, 404, { error: 'Taak niet gevonden' }); t.d = VERHUIS_DAGEN.includes(b.d) ? b.d : ''; }
