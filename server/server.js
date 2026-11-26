@@ -18,7 +18,9 @@ const VERHUIS_START = [
   ['Regelen', 'Verhuisdozen, tape, markers, bubbeltjesplastic en vuilniszakken halen', '', '2026-11-27'],
   ['Regelen', 'Helpers vragen voor dinsdag 1 december (10:30–15:00)', '', '2026-11-27'],
   ['Aanhanger', 'Aanhanger ophalen bij Masta Verhuur in Sint-Oedenrode (vanaf 08:00)', '', '2026-11-30'],
-  ['Aanhanger', 'Aanhanger alvast laden met dozen en spullen die al weg kunnen', '', '2026-11-30'],
+  ['Aanhanger', 'Aanhanger zo vol mogelijk laden: alle dozen, kasten en grote spullen (alleen bed en eerste-nacht-spullen blijven)', 'Samen', '2026-11-30'],
+  ['Aanhanger', 'Aanhanger \'s nachts veilig parkeren en afsluiten (slot, geen waardevolle spullen erin)', '', '2026-11-30'],
+  ['Aanhanger', 'Aanhanger lossen in het nieuwe huis (na 10:30)', 'Samen', '2026-12-01'],
   ['Aanhanger', 'Aanhanger terugbrengen bij Masta Verhuur (voor 22:00)', '', '2026-12-02'],
   ['Regelen', 'Opvang of plan voor Jolo op dinsdag', '', '2026-11-27'],
   ['Regelen', 'Vervoer voor Coco en Mango regelen (kooi of reisbox)', '', '2026-11-27'],
@@ -36,14 +38,14 @@ const VERHUIS_START = [
   ['Woonkamer', 'Gaten in de muur dichtsmeren (kan dan nog drogen)', '', '2026-11-28'],
   ['Woonkamer', 'Gordijnen en rails eraf (als ze mee gaan)', '', '2026-11-29'],
   ['Woonkamer', 'Lampen van het plafond halen en peertjes (kale fitting) terughangen', '', '2026-11-29'],
-  ['Woonkamer', 'Tv en kabels inpakken (eerst foto van de aansluitingen)', '', '2026-11-30'],
+  ['Woonkamer', 'Tv en kabels inpakken (eerst foto van de aansluitingen)', '', '2026-11-29'],
   ['Keuken', 'Glaswerk apart inpakken in papier, doos "BREEKBAAR"', '', '2026-11-28'],
   ['Keuken', 'Servies inpakken (paar borden en bekers houden tot maandag)', '', '2026-11-28'],
   ['Keuken', 'Voorraadkast opmaken of inpakken', '', '2026-11-28'],
-  ['Keuken', 'Pannen, bestek en laatste keukenspullen inpakken', '', '2026-11-30'],
+  ['Keuken', 'Pannen, bestek en laatste keukenspullen inpakken', '', '2026-11-29'],
   ['Keuken', 'Koelkast en vriezer leegmaken, uitzetten en laten ontdooien', '', '2026-11-29'],
   ['Keuken', 'Koelkast afsluiten en andere koelkast plaatsen (vóór 1 december)', '', '2026-11-30'],
-  ['Keuken', 'Keukenkastjes, oven en magnetron schoonmaken', '', '2026-11-30'],
+  ['Keuken', 'Keukenkastjes, oven en magnetron schoonmaken', '', '2026-11-29'],
   ['Slaapkamer', 'Was vouwen en in koffers', '', '2026-11-28'],
   ['Slaapkamer', 'Kleren in koffers (kleding voor ma + di apart)', '', '2026-11-29'],
   ['Slaapkamer', 'Lampen eraf, peertjes terug; schilderijen eraf en gaten dicht', '', '2026-11-28'],
@@ -53,17 +55,17 @@ const VERHUIS_START = [
   ['Badkamer', 'Spiegel, haakjes en rekjes eraf en gaten dichtsmeren', '', '2026-11-28'],
   ['Badkamer', 'Laatste toiletspullen in de doos "eerste nacht"', '', '2026-12-01'],
   ['Wc', 'Haakjes en rekjes eraf, gaten dicht', '', '2026-11-28'],
-  ['Wc', 'Spullen uit de wc inpakken (wc-papier en schoonmaakmiddel apart voor di)', '', '2026-11-30'],
+  ['Wc', 'Spullen uit de wc inpakken (wc-papier en schoonmaakmiddel apart voor di)', '', '2026-11-29'],
   ['Cv-hok', 'Spullen uit het cv-hok halen en inpakken', '', '2026-11-28'],
   ['Techniek', 'Camera\'s en slimme stekkers losmaken (behalve wat maandag nog nodig is)', '', '2026-11-30'],
   ['Techniek', 'Servers netjes afsluiten (VM\'s eerst) en inpakken', '', '2026-12-01'],
   ['Techniek', 'Router, Hue Bridge, speakers en tablets inpakken (kabels bij elkaar)', '', '2026-12-01'],
   ['Verhuisdag', 'Elke doos labelen met de kamer in het nieuwe huis', '', '2026-11-29'],
-  ['Verhuisdag', 'Doos "eerste nacht" maken: beddengoed, toiletspullen, opladers, koffie, wc-papier', '', '2026-11-30'],
-  ['Verhuisdag', 'Voer en spullen voor Jolo, Coco en Mango apart houden', '', '2026-11-30'],
-  ['Verhuisdag', 'Dozen en losse spullen bij de deur klaarzetten', '', '2026-11-30'],
+  ['Verhuisdag', 'Doos "eerste nacht" maken: beddengoed, toiletspullen, opladers, koffie, wc-papier', '', '2026-11-29'],
+  ['Verhuisdag', 'Voer en spullen voor Jolo, Coco en Mango apart houden', '', '2026-11-29'],
+  ['Verhuisdag', 'Alles ingepakt en bij de deur klaargezet (behalve bed en eerste-nacht-spullen)', '', '2026-11-29'],
   ['Verhuisdag', '10:30 Sleutels nieuwe huis ophalen (Frans Staelstraat 29)', 'Samen', '2026-12-01'],
-  ['Verhuisdag', 'Bus laden en eerste rit naar het nieuwe huis', '', '2026-12-01'],
+  ['Verhuisdag', 'Laatste spullen laden (bed, eerste nacht) en tweede rit', '', '2026-12-01'],
   ['Verhuisdag', 'Coco, Mango en Jolo naar het nieuwe huis', '', '2026-12-01'],
   ['Opleveren', 'Laatste schoonmaakronde: muren, vloeren en ramen (rond 14:00 klaar)', '', '2026-12-01'],
   ['Opleveren', 'Meterstanden (gas, stroom, water) noteren met foto', '', '2026-12-01'],
@@ -879,7 +881,7 @@ http.createServer(async (req, res) => {
       const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
       const laad = () => {
         let v = kvGet('verhuis');
-        if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w, d], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', d: d || '', klaar: 0, door: '', op: 0 })), dagen: 2 }; kvPut('verhuis', v); }
+        if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w, d], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', d: d || '', klaar: 0, door: '', op: 0 })), dagen: 3 }; kvPut('verhuis', v); }
         else if (!v.dagen) {
           // Oude lijst zonder dagen: dag invullen op taaknaam (begin van de tekst), nieuwe startitems toevoegen.
           const sleutel = x => x.toLowerCase().slice(0, 22);
@@ -897,6 +899,17 @@ http.createServer(async (req, res) => {
           }
           VERHUIS_START.filter(r => r[0] === 'Aanhanger').forEach(([k, t, w, d], i) => { if (!v.taken.some(x => x.t === t)) v.taken.push({ id: 'a' + i, k, t, w: w || '', d, klaar: 0, door: '', op: 0 }); });
           v.dagen = 2; kvPut('verhuis', v);
+        }
+        if (v.dagen === 2) {
+          // Versie 3: maandag 30 november zo veel mogelijk in de aanhanger; inpakken naar zondag.
+          const W = { 'Aanhanger alvast laden met dozen en spullen die al weg kunnen': ['Aanhanger zo vol mogelijk laden: alle dozen, kasten en grote spullen (alleen bed en eerste-nacht-spullen blijven)', '2026-11-30'], 'Dozen en losse spullen bij de deur klaarzetten': ['Alles ingepakt en bij de deur klaargezet (behalve bed en eerste-nacht-spullen)', '2026-11-29'], 'Bus laden en eerste rit naar het nieuwe huis': ['Laatste spullen laden (bed, eerste nacht) en tweede rit', '2026-12-01'] };
+          const NAAR_ZO = ['Tv en kabels inpakken', 'Pannen, bestek en laatste keukenspullen', 'Keukenkastjes, oven en magnetron', 'Spullen uit de wc inpakken', 'Doos "eerste nacht" maken', 'Voer en spullen voor Jolo'];
+          for (const x of v.taken) {
+            if (W[x.t]) { [x.t, x.d] = W[x.t]; }
+            else if (x.d === '2026-11-30' && NAAR_ZO.some(b => x.t.startsWith(b))) x.d = '2026-11-29';
+          }
+          VERHUIS_START.filter(r => r[0] === 'Aanhanger').forEach(([k, t, w, d], i) => { if (!v.taken.some(x => x.t === t)) v.taken.push({ id: 'b' + i, k, t, w: w || '', d, klaar: 0, door: '', op: 0 }); });
+          v.dagen = 3; kvPut('verhuis', v);
         }
         return v;
       };

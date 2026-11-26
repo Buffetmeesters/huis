@@ -89,7 +89,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--geel);outline-o
 <script>
 const WIE=['','Joshua','Lorenzo','Samen'], KORT={Joshua:'J',Lorenzo:'L',Samen:'S'};
 const DAGEN=['2026-11-27','2026-11-28','2026-11-29','2026-11-30','2026-12-01','2026-12-02','na'];
-const DAGNAAM={'2026-11-27':'Vrijdag 27 november','2026-11-28':'Zaterdag 28 november','2026-11-29':'Zondag 29 november','2026-11-30':'Maandag 30 november · aanhanger ophalen (vanaf 08:00)','2026-12-01':'Dinsdag 1 december · verhuisdag (10:30 sleutels, 15:00 inleveren)','2026-12-02':'Woensdag 2 december · aanhanger terug (voor 22:00)','na':'Na de verhuizing','':'Nog geen dag'};
+const DAGNAAM={'2026-11-27':'Vrijdag 27 november','2026-11-28':'Zaterdag 28 november','2026-11-29':'Zondag 29 november · alles ingepakt','2026-11-30':'Maandag 30 november · aanhanger ophalen (08:00) en zo veel mogelijk inladen','2026-12-01':'Dinsdag 1 december · verhuisdag (10:30 sleutels, 15:00 inleveren)','2026-12-02':'Woensdag 2 december · aanhanger terug (voor 22:00)','na':'Na de verhuizing','':'Nog geen dag'};
 const DAGKORT={'2026-11-27':'vr 27','2026-11-28':'za 28','2026-11-29':'zo 29','2026-11-30':'ma 30','2026-12-01':'di 1','2026-12-02':'wo 2','na':'daarna','':'dag?'};
 let D={taken:[]}, ik='', filter='open', weergave=localStorage.getItem('vh-weergave')||'dag', extra=[], bezig=false;
 const $=s=>document.querySelector(s), esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
