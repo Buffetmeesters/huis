@@ -13,7 +13,7 @@ const OWNERS = ['Joshua', 'Lorenzo'];
 // Verhuizing (/verhuizing): startlijst [kamer, taak, wie, dag]; daarna bewerkbaar op de pagina (kv 'verhuis').
 // Dagen: datum (JJJJ-MM-DD) of 'na'. Verhuisdag dinsdag 1 december: sleutels nieuw huis 10:30, oude sleutels (Stapelen 76) inleveren 15:00.
 // Aanhanger Masta Verhuur Sint-Oedenrode: ophalen ma 30 november vanaf 08:00, terug wo 2 december voor 22:00.
-const VERHUIS_DAGEN = ['2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02', 'na'];
+const VERHUIS_DAGEN = ['2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02', '2026-12-05', 'na'];
 const VERHUIS_START = [
   ['Regelen', 'Verhuisdozen, tape, markers, bubbeltjesplastic en vuilniszakken halen', '', '2026-11-27'],
   ['Regelen', 'Helpers dinsdag bevestigen en tijden en adressen doorgeven (Judite, Alex, Sabine, Robin, Anja, Arnold, Richard, Samantha)', '', '2026-11-27'],
@@ -28,7 +28,7 @@ const VERHUIS_START = [
   ['Aanhanger', 'Aanhanger lossen in het nieuwe huis (na 10:30)', 'Samen', '2026-12-01'],
   ['Aanhanger', 'Aanhanger terugbrengen bij Masta Verhuur (voor 22:00)', '', '2026-12-02'],
   ['Regelen', 'Opvang of plan voor Jolo op dinsdag', '', '2026-11-27'],
-  ['Regelen', 'Vervoer voor Coco en Mango regelen (kooi of reisbox)', '', '2026-11-27'],
+  ['Regelen', 'Vervoer voor Coco en Mango regelen voor zaterdag 5 december (kooi of reisbox)', '', '2026-11-27'],
   ['Regelen', 'Verhuizing doorgeven aan de gemeente Boxtel (adreswijziging)', '', '2026-11-27'],
   ['Regelen', 'Nieuw adres doorgeven: bank, verzekeringen, zorgverzekeraar, abonnementen', '', '2026-11-27'],
   ['Regelen', 'Doorstuurservice post aanvragen (PostNL)', '', '2026-11-27'],
@@ -67,11 +67,13 @@ const VERHUIS_START = [
   ['Techniek', 'Router, Hue Bridge, speakers en tablets inpakken (kabels bij elkaar)', '', '2026-12-01'],
   ['Verhuisdag', 'Elke doos labelen met de kamer in het nieuwe huis', '', '2026-11-29'],
   ['Verhuisdag', 'Doos "eerste nacht" maken: beddengoed, toiletspullen, opladers, koffie, wc-papier', '', '2026-11-29'],
-  ['Verhuisdag', 'Voer en spullen voor Jolo, Coco en Mango apart houden', '', '2026-11-29'],
+  ['Verhuisdag', 'Voer en spullen voor Jolo apart houden', '', '2026-11-29'],
   ['Verhuisdag', 'Alles ingepakt en bij de deur klaargezet (behalve bed en eerste-nacht-spullen)', '', '2026-11-29'],
   ['Verhuisdag', '10:30 Sleutels nieuwe huis ophalen (Frans Staelstraat 29)', 'Samen', '2026-12-01'],
   ['Verhuisdag', 'Laatste spullen laden (bed, eerste nacht) en tweede rit', '', '2026-12-01'],
-  ['Verhuisdag', 'Coco, Mango en Jolo naar het nieuwe huis', '', '2026-12-01'],
+  ['Verhuisdag', 'Jolo naar het nieuwe huis', '', '2026-12-01'],
+  ['Coco en Mango', 'Plek en kooi voor Coco en Mango klaarmaken in het nieuwe huis', '', '2026-12-05'],
+  ['Coco en Mango', 'Coco en Mango naar het nieuwe huis', '', '2026-12-05'],
   ['Opleveren', 'Laatste schoonmaakronde: muren, vloeren en ramen (rond 14:00 klaar)', '', '2026-12-01'],
   ['Opleveren', 'Meterstanden (gas, stroom, water) noteren met foto', '', '2026-12-01'],
   ['Opleveren', 'Foto\'s maken van de lege woning', '', '2026-12-01'],
@@ -886,7 +888,7 @@ http.createServer(async (req, res) => {
       const s = session(req); if (!s || s.role !== 'owner' || !OWNERS.includes(s.ref)) return json(res, 403, { error: 'Alleen Joshua en Lorenzo' });
       const laad = () => {
         let v = kvGet('verhuis');
-        if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w, d], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', d: d || '', klaar: 0, door: '', op: 0 })), dagen: 4 }; kvPut('verhuis', v); }
+        if (!v || !Array.isArray(v.taken)) { v = { taken: VERHUIS_START.map(([k, t, w, d], i) => ({ id: 'v' + i.toString(36), k, t, w: w || '', d: d || '', klaar: 0, door: '', op: 0 })), dagen: 5 }; kvPut('verhuis', v); }
         else if (!v.dagen) {
           // Oude lijst zonder dagen: dag invullen op taaknaam (begin van de tekst), nieuwe startitems toevoegen.
           const sleutel = x => x.toLowerCase().slice(0, 22);
@@ -922,6 +924,13 @@ http.createServer(async (req, res) => {
           const nieuw = ['Slaapplek voor vader', 'Avondeten maandag', 'Boodschappen voor dinsdag', 'Ploegen maken', 'Lunch voor iedereen'];
           VERHUIS_START.forEach(([k, t, w, d], i) => { if (nieuw.some(n => t.startsWith(n)) && !v.taken.some(x => x.t === t)) v.taken.push({ id: 'c' + i, k, t, w: w || '', d, klaar: 0, door: '', op: 0 }); });
           v.dagen = 4; kvPut('verhuis', v);
+        }
+        if (v.dagen === 4) {
+          // Versie 5: Coco en Mango komen pas zaterdag 5 december.
+          const W = { 'Vervoer voor Coco en Mango regelen (kooi of reisbox)': 'Vervoer voor Coco en Mango regelen voor zaterdag 5 december (kooi of reisbox)', 'Voer en spullen voor Jolo, Coco en Mango apart houden': 'Voer en spullen voor Jolo apart houden', 'Coco, Mango en Jolo naar het nieuwe huis': 'Jolo naar het nieuwe huis' };
+          for (const x of v.taken) if (W[x.t]) x.t = W[x.t];
+          VERHUIS_START.filter(r => r[0] === 'Coco en Mango').forEach(([k, t, w, d], i) => { if (!v.taken.some(x => x.t === t)) v.taken.push({ id: 'd' + i, k, t, w: w || '', d, klaar: 0, door: '', op: 0 }); });
+          v.dagen = 5; kvPut('verhuis', v);
         }
         return v;
       };
