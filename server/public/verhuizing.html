@@ -48,6 +48,17 @@ li.klaar{background:var(--okz)}
 .kamer{display:flex;gap:8px;margin-top:6px}
 .kamer input{flex:1;font:inherit;padding:9px 12px;border:1px solid var(--lijn);border-radius:10px;background:var(--kaart);color:var(--ink)}
 .leeg{color:var(--mute);padding:14px}
+.tijden{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tijden span{background:rgba(255,255,255,.14);border-radius:9px;padding:5px 10px;font-size:.88rem}
+.tijden b{color:var(--geel)}
+.weergave{display:flex;gap:6px;margin:12px 0 4px}
+.weergave button{flex:1;font:inherit;font-size:.92rem;border:1px solid var(--lijn);background:var(--kaart);color:var(--ink);border-radius:10px;padding:8px;cursor:pointer}
+.weergave button[aria-pressed=true]{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc);font-weight:650}
+section.vandaag{border-color:var(--geel);box-shadow:0 0 0 2px var(--geel)}
+section.verhuisdag h2{background:rgba(242,181,49,.16)}
+.lbl{display:inline-block;font-size:.75rem;color:var(--mute);border:1px solid var(--lijn);border-radius:6px;padding:0 6px;margin-right:6px}
+.dag{font:inherit;font-size:.8rem;border:1px solid var(--lijn);border-radius:99px;padding:3px 6px;background:transparent;color:var(--mute);flex:none;max-width:6.5rem}
+.knoppen{display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex:none}
 .fout{background:#fdecea;color:#8a1c1c;border-radius:10px;padding:10px 14px;margin-bottom:10px;display:none}
 button:focus-visible,input:focus-visible{outline:3px solid var(--geel);outline-offset:2px}
 </style>
@@ -56,11 +67,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--geel);outline-o
 <header><div class="b">
   <div class="rij"><h1>Verhuizing</h1><a href="/">Terug naar Huis</a></div>
   <div class="sub">Naar Frans Staelstraat 29, Boxtel · alleen voor Joshua en Lorenzo</div>
+  <div class="tijden"><span>Ma 1 december</span><span>Sleutels nieuw huis <b>10:30</b></span><span>Oude sleutels inleveren <b>15:00</b></span><span id="aftellen"></span></div>
   <div class="voortgang" aria-hidden="true"><i id="balk"></i></div>
   <div class="telling" id="telling">Laden…</div>
 </div></header>
 <main>
   <div class="fout" id="fout"></div>
+  <div class="weergave" role="group" aria-label="Weergave"><button data-v="dag" aria-pressed="true">Per dag</button><button data-v="kamer" aria-pressed="false">Per kamer</button></div>
   <div class="filters" role="group" aria-label="Filter">
     <button data-f="open" aria-pressed="true">Nog te doen</button>
     <button data-f="alles" aria-pressed="false">Alles</button>
@@ -75,8 +88,12 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--geel);outline-o
 </main>
 <script>
 const WIE=['','Joshua','Lorenzo','Samen'], KORT={Joshua:'J',Lorenzo:'L',Samen:'S'};
-let D={taken:[]}, ik='', filter='open', extraKamers=[], bezig=false;
+const DAGEN=['2026-11-27','2026-11-28','2026-11-29','2026-11-30','2026-12-01','na'];
+const DAGNAAM={'2026-11-27':'Donderdag 27 november','2026-11-28':'Vrijdag 28 november','2026-11-29':'Zaterdag 29 november','2026-11-30':'Zondag 30 november','2026-12-01':'Maandag 1 december · verhuisdag (10:30 sleutels, 15:00 inleveren)','na':'Na de verhuizing','':'Nog geen dag'};
+const DAGKORT={'2026-11-27':'do 27','2026-11-28':'vr 28','2026-11-29':'za 29','2026-11-30':'zo 30','2026-12-01':'ma 1','na':'daarna','':'dag?'};
+let D={taken:[]}, ik='', filter='open', weergave=localStorage.getItem('vh-weergave')||'dag', extra=[], bezig=false;
 const $=s=>document.querySelector(s), esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const vandaag=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 function fout(t){const f=$('#fout');f.textContent=t||'';f.style.display=t?'block':'none'}
 async function api(pad,b){
   bezig=true;
@@ -86,42 +103,56 @@ async function api(pad,b){
   finally{bezig=false}
 }
 function tijd(ms){const d=new Date(ms);return d.toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'short'})+' '+d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}
+function aftellen(){const nu=new Date(),doel=new Date('2026-12-01T10:30:00'),ms=doel-nu;
+  $('#aftellen').textContent=ms<=0?'Verhuisdag!':(ms<864e5?'Nog '+Math.ceil(ms/36e5)+' uur':'Nog '+Math.ceil(ms/864e5)+' dagen')}
+function rij(x){
+  const dagSel='<select class="dag" data-dag="'+x.id+'" aria-label="Dag">'+['',...DAGEN].map(d=>'<option value="'+d+'"'+((x.d||'')===d?' selected':'')+'>'+DAGKORT[d]+'</option>').join('')+'</select>';
+  return '<li class="'+(x.klaar?'klaar':'')+'"><input type="checkbox" data-id="'+x.id+'" '+(x.klaar?'checked':'')+' aria-label="Klaar: '+esc(x.t)+'">'
+    +'<div class="tekst"><span>'+(weergave==='dag'?'<i class="lbl">'+esc(x.k)+'</i>':'')+esc(x.t)+'</span>'+(x.klaar&&x.door?'<div class="meta">Gedaan door '+esc(x.door)+' · '+tijd(x.op)+'</div>':'')+'</div>'
+    +'<div class="knoppen"><button class="wie '+(KORT[x.w]||'')+'" data-wie="'+x.id+'" title="Wie doet het? (tik om te wisselen)">'+(x.w||'Wie?')+'</button>'+dagSel+'</div>'
+    +'<button class="weg" data-weg="'+x.id+'" aria-label="Verwijderen" title="Verwijderen">×</button></li>';
+}
 function teken(){
   const t=D.taken, k=t.filter(x=>x.klaar).length, pct=t.length?Math.round(k/t.length*100):0;
   $('#balk').style.width=pct+'%';
   $('#telling').textContent=k+' van '+t.length+' klaar ('+pct+'%)'+(t.length-k?' · nog '+(t.length-k)+' te doen':' · alles klaar!');
-  const kamers=[...new Set(t.map(x=>x.k).concat(extraKamers))];
+  aftellen();
   const zie=x=>filter==='alles'||(filter==='open'&&!x.klaar)||(filter==='klaar'&&x.klaar)||(filter==='mij'&&!x.klaar&&(x.w===ik||x.w==='Samen'||!x.w));
-  let h='';
-  for(const km of kamers){
-    const alle=t.filter(x=>x.k===km), rij=alle.filter(zie), af=alle.length&&alle.every(x=>x.klaar);
-    if(!rij.length&&filter!=='alles'&&!extraKamers.includes(km))continue;
-    h+='<section class="'+(af?'af':'')+'"><h2>'+(af?'✓ ':'')+esc(km)+'<small>'+alle.filter(x=>x.klaar).length+'/'+alle.length+'</small></h2><ul>';
-    for(const x of rij){
-      h+='<li class="'+(x.klaar?'klaar':'')+'"><input type="checkbox" data-id="'+x.id+'" '+(x.klaar?'checked':'')+' aria-label="Klaar: '+esc(x.t)+'">'
-        +'<div class="tekst"><span>'+esc(x.t)+'</span>'+(x.klaar&&x.door?'<div class="meta">Gedaan door '+esc(x.door)+' · '+tijd(x.op)+'</div>':'')+'</div>'
-        +'<button class="wie '+(KORT[x.w]||'')+'" data-wie="'+x.id+'" title="Wie doet het? (tik om te wisselen)">'+(x.w||'Wie?')+'</button>'
-        +'<button class="weg" data-weg="'+x.id+'" aria-label="Verwijderen" title="Verwijderen">×</button></li>';
-    }
-    h+='</ul><form class="nieuw" data-k="'+esc(km)+'"><input placeholder="Taak toevoegen…" maxlength="200" aria-label="Taak toevoegen bij '+esc(km)+'"><button>+</button></form></section>';
+  const groepen = weergave==='dag'
+    ? [...DAGEN, ''].filter(d=>d!==''||t.some(x=>!x.d)).map(d=>({sleutel:d,naam:DAGNAAM[d],alle:t.filter(x=>(x.d||'')===d)}))
+    : [...new Set(t.map(x=>x.k).concat(extra))].map(km=>({sleutel:km,naam:km,alle:t.filter(x=>x.k===km)}));
+  const nu=vandaag(); let h='';
+  for(const g of groepen){
+    const rijen=g.alle.filter(zie), af=g.alle.length&&g.alle.every(x=>x.klaar);
+    if(!rijen.length&&filter!=='alles'&&!extra.includes(g.sleutel)&&!(weergave==='dag'&&g.sleutel===nu))continue;
+    const kl=[af?'af':'',weergave==='dag'&&g.sleutel===nu?'vandaag':'',g.sleutel==='2026-12-01'?'verhuisdag':''].join(' ');
+    h+='<section class="'+kl+'"><h2>'+(af?'✓ ':'')+(weergave==='dag'&&g.sleutel===nu?'Vandaag · ':'')+esc(g.naam)+'<small>'+g.alle.filter(x=>x.klaar).length+'/'+g.alle.length+'</small></h2><ul>';
+    h+=rijen.map(rij).join('');
+    h+='</ul><form class="nieuw" data-g="'+esc(g.sleutel)+'"><input placeholder="Taak toevoegen…" maxlength="200" aria-label="Taak toevoegen"><button>+</button></form></section>';
   }
   $('#lijst').innerHTML=h||'<p class="leeg">'+(filter==='klaar'?'Nog niets afgevinkt.':'Niets meer te doen in deze weergave. 🎉')+'</p>';
+  $('#kamerform').style.display=weergave==='kamer'?'flex':'none';
 }
-document.addEventListener('change',e=>{const id=e.target.dataset&&e.target.dataset.id;if(id)api('/klaar',{id,klaar:e.target.checked})});
+document.addEventListener('change',e=>{
+  const id=e.target.dataset&&e.target.dataset.id;if(id)return api('/klaar',{id,klaar:e.target.checked});
+  const dg=e.target.dataset&&e.target.dataset.dag;if(dg)api('/dag',{id:dg,d:e.target.value});
+});
 document.addEventListener('click',e=>{
   const w=e.target.closest('[data-wie]');if(w){const x=D.taken.find(t=>t.id===w.dataset.wie);api('/wie',{id:x.id,w:WIE[(WIE.indexOf(x.w||'')+1)%WIE.length]});return}
-  const g=e.target.closest('[data-weg]');if(g){const x=D.taken.find(t=>t.id===g.dataset.weg);if(confirm('Taak verwijderen?\n\n'+x.t))api('/weg',{id:x.id})}
-  const f=e.target.closest('.filters button');if(f){filter=f.dataset.f;document.querySelectorAll('.filters button').forEach(b=>b.setAttribute('aria-pressed',b===f));teken()}
+  const g=e.target.closest('[data-weg]');if(g){const x=D.taken.find(t=>t.id===g.dataset.weg);if(confirm('Taak verwijderen?\n\n'+x.t))api('/weg',{id:x.id});return}
+  const f=e.target.closest('.filters button');if(f){filter=f.dataset.f;document.querySelectorAll('.filters button').forEach(b=>b.setAttribute('aria-pressed',b===f));teken();return}
+  const v=e.target.closest('.weergave button');if(v){weergave=v.dataset.v;try{localStorage.setItem('vh-weergave',weergave)}catch(_){}document.querySelectorAll('.weergave button').forEach(b=>b.setAttribute('aria-pressed',b===v));teken()}
 });
 document.addEventListener('submit',e=>{
   e.preventDefault();
-  if(e.target.id==='kamerform'){const v=$('#kamernaam').value.trim();if(v&&!extraKamers.includes(v)){extraKamers.push(v);$('#kamernaam').value='';teken()}return}
-  const k=e.target.dataset.k,i=e.target.querySelector('input'),v=i.value.trim();if(!v)return;
-  extraKamers=extraKamers.filter(x=>x!==k);api('/nieuw',{k,t:v});
+  if(e.target.id==='kamerform'){const v=$('#kamernaam').value.trim();if(v&&!extra.includes(v)){extra.push(v);$('#kamernaam').value='';teken()}return}
+  const g=e.target.dataset.g,i=e.target.querySelector('input'),v=i.value.trim();if(!v)return;
+  if(weergave==='dag')api('/nieuw',{k:'Overig',t:v,d:g});else{extra=extra.filter(x=>x!==g);api('/nieuw',{k:g,t:v})}
 });
-fetch('/api/me').then(r=>r.ok?r.json():{}).then(m=>{ik=m.name||(m.me&&m.me.name)||''}).catch(()=>{});
+document.querySelectorAll('.weergave button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===weergave));
+fetch('/api/me').then(r=>r.ok?r.json():{}).then(m=>{ik=m.name||''}).catch(()=>{});
 api('');
-setInterval(()=>{if(!bezig&&!document.querySelector('.nieuw input:focus,#kamernaam:focus')&&!document.hidden)api('')},20000);
+setInterval(()=>{if(!bezig&&!document.querySelector('.nieuw input:focus,#kamernaam:focus,select:focus')&&!document.hidden)api('')},20000);
 </script>
 </body>
 </html>
